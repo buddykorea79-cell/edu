@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTalk - 강사</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ── Screen: Auth ──────────────────────────────────────────────────────── -->
+<div id="screen-auth" class="screen-wrap">
+  <div class="auth-card">
+    <div class="logo">
+      <h1>🎓 EduTalk</h1>
+      <p>강사 로그인</p>
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input type="password" id="auth-password" placeholder="강사 비밀번호 입력" autofocus>
+    </div>
+    <div id="auth-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+    <button class="btn btn-primary" id="auth-btn">로그인</button>
+    <div class="mt-12 text-sm text-gray" style="text-align:center">
+      <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Screen: Setup ─────────────────────────────────────────────────────── -->
+<div id="screen-setup" class="screen-wrap hidden">
+  <div class="auth-card">
+    <div class="logo">
+      <h1>🎓 EduTalk</h1>
+      <p>강의실 만들기</p>
+    </div>
+    <div class="form-group">
+      <label>강의 이름</label>
+      <input type="text" id="setup-lecture" placeholder="예: 웹 개발 기초 1강">
+    </div>
+    <div class="form-group">
+      <label>방 코드 (6자리)</label>
+      <div class="input-row">
+        <input type="text" id="setup-room-code" placeholder="123456" maxlength="6" pattern="[0-9]{6}">
+        <button class="btn btn-secondary" id="gen-code-btn" style="white-space:nowrap">🔀 자동생성</button>
+      </div>
+    </div>
+    <div id="setup-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+    <button class="btn btn-primary" id="setup-btn">강의실 열기</button>
+  </div>
+</div>
+
+<!-- ── Screen: Room ──────────────────────────────────────────────────────── -->
+<div id="screen-room" class="room-layout hidden">
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <button class="menu-btn" id="mobile-menu-btn">☰</button>
+    <span class="mobile-title">EduTalk 강사</span>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <span class="brand-name">🎓 EduTalk</span>
+        <span class="conn-dot" id="conn-dot"></span>
+      </div>
+      <div class="room-info-box">
+        <div class="room-code-row">
+          <span class="room-code-label">방 코드</span>
+          <span class="room-code-value" id="sb-room-code" title="클릭하여 복사">——</span>
+          <button class="copy-btn" id="copy-code-btn" title="복사">📋</button>
+        </div>
+        <div class="lecture-name" id="sb-lecture-name">—</div>
+      </div>
+    </div>
+
+    <div class="sidebar-body">
+      <!-- Students -->
+      <div>
+        <div class="sidebar-section-title">
+          참여 학생 <span class="student-count" id="student-count">0</span>
+        </div>
+        <div class="student-list" id="student-list">
+          <div class="text-sm text-gray" style="padding:6px 20px">아직 학생이 없습니다</div>
+        </div>
+      </div>
+
+      <!-- Survey tools -->
+      <div>
+        <div class="sidebar-section-title">설문 도구</div>
+        <div class="sidebar-tools">
+          <button class="tool-btn" id="understanding-btn">
+            <span class="tool-icon">🧠</span> 이해도조사
+          </button>
+          <button class="tool-btn" id="custom-survey-btn">
+            <span class="tool-icon">📋</span> 객관식설문만들기
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="exit-btn" id="exit-btn">🚪 강의 종료</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="chat">💬 채팅</button>
+      <button class="tab-btn" data-tab="surveys">📊 설문</button>
+      <button class="tab-btn" data-tab="resources">📚 교육자료</button>
+      <button class="tab-btn" data-tab="ai">🤖 AI</button>
+    </div>
+
+    <div class="tab-content">
+      <!-- Chat -->
+      <div class="tab-pane active" data-pane="chat">
+        <div class="chat-feed" id="chat-feed"></div>
+        <div class="chat-input-area">
+          <input type="file" id="file-input" style="display:none" accept="*/*">
+          <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부">📎</button>
+          <input type="text" class="chat-input" id="chat-input" placeholder="메시지 입력...">
+          <button class="chat-send-btn" id="chat-send-btn" title="전송">➤</button>
+        </div>
+      </div>
+
+      <!-- Surveys -->
+      <div class="tab-pane" data-pane="surveys">
+        <div class="surveys-pane" id="surveys-feed">
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <p>설문이 없습니다<br>사이드바에서 설문을 시작하세요</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resources -->
+      <div class="tab-pane" data-pane="resources">
+        <div class="resources-pane">
+          <div class="resource-share-form">
+            <h4>📎 교육자료 공유</h4>
+            <label>HTML 링크 공유</label>
+            <div class="resource-form-row">
+              <input type="url" id="resource-url-input" placeholder="https://example.com">
+              <button class="btn btn-secondary" id="resource-url-btn" style="width:auto">공유</button>
+            </div>
+            <div class="resource-divider">또는</div>
+            <label>PDF 파일 업로드 &amp; 공유</label>
+            <input type="file" id="resource-file-input" style="display:none" accept=".pdf,application/pdf">
+            <button class="btn btn-secondary" id="resource-file-btn">📄 PDF 파일 선택</button>
+          </div>
+
+          <div class="resource-list" id="resource-list-section" style="display:none">
+            <div class="resource-list-title">공유된 자료</div>
+            <div id="resource-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI -->
+      <div class="tab-pane" data-pane="ai">
+        <div class="ai-pane">
+          <div class="ai-settings">
+            <input type="password" class="ai-key-input" id="ai-api-key" placeholder="OpenRouter API 키 입력">
+            <select class="ai-model-select" id="ai-model">
+              <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+              <option value="openai/gpt-4o">GPT-4o</option>
+              <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
+              <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+              <option value="google/gemini-flash-1.5">Gemini Flash 1.5</option>
+              <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Free)</option>
+            </select>
+          </div>
+          <div class="ai-feed" id="ai-feed"></div>
+          <div class="ai-input-area">
+            <textarea class="ai-input" id="ai-input" placeholder="AI에게 질문하세요..." rows="1"></textarea>
+            <button class="chat-send-btn" id="ai-send-btn" title="전송">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Custom Survey ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="custom-survey-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">📋 객관식 설문 만들기</div>
+    <div class="form-group">
+      <label>질문</label>
+      <input type="text" id="survey-question" placeholder="설문 질문을 입력하세요">
+    </div>
+    <div class="form-group">
+      <label>선택지</label>
+      <div class="option-inputs" id="option-inputs">
+        <div class="option-input-row">
+          <input type="text" placeholder="선택지 1">
+          <button class="remove-option-btn" onclick="removeOption(this)">✕</button>
+        </div>
+        <div class="option-input-row">
+          <input type="text" placeholder="선택지 2">
+          <button class="remove-option-btn" onclick="removeOption(this)">✕</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm mt-8" id="add-option-btn">+ 선택지 추가</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancel-survey-btn">취소</button>
+      <button class="btn btn-primary" id="create-survey-btn" style="width:auto">설문 시작</button>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/instructor.js"></script>
+</body>
+</html>

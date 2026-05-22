@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTalk - 학생</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ── Screen: Join ──────────────────────────────────────────────────────── -->
+<div id="screen-join" class="screen-wrap">
+  <div class="auth-card" style="max-width:480px">
+    <div class="logo">
+      <h1>🎓 EduTalk</h1>
+      <p>강의실 입장</p>
+    </div>
+
+    <div class="form-group">
+      <label>내 아바타 선택</label>
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+
+    <div class="form-group">
+      <label>닉네임</label>
+      <input type="text" id="join-name" placeholder="이름 또는 별명 입력" maxlength="20">
+    </div>
+
+    <div class="form-group">
+      <label>방 코드</label>
+      <input type="text" id="join-room-code" placeholder="6자리 방 코드" maxlength="6" pattern="[0-9]{6}">
+    </div>
+
+    <div id="join-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+
+    <button class="btn btn-primary" id="join-btn">입장하기</button>
+    <div class="mt-12 text-sm text-gray" style="text-align:center">
+      <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Screen: Room ──────────────────────────────────────────────────────── -->
+<div id="screen-room" class="room-layout hidden">
+
+  <!-- Mobile header -->
+  <div class="mobile-header">
+    <button class="menu-btn" id="mobile-menu-btn">☰</button>
+    <span class="mobile-title">EduTalk</span>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <span class="brand-name">🎓 EduTalk</span>
+        <span class="conn-dot" id="conn-dot"></span>
+      </div>
+      <div class="room-info-box">
+        <div class="room-code-row">
+          <span class="room-code-label">방 코드</span>
+          <span class="room-code-value" id="sb-room-code">——</span>
+        </div>
+        <div class="lecture-name" id="sb-lecture-name">—</div>
+      </div>
+    </div>
+
+    <div class="sidebar-body">
+      <div>
+        <div class="sidebar-section-title">내 정보</div>
+        <div class="my-info-box">
+          <div class="my-emoji" id="sb-my-emoji">👤</div>
+          <div class="my-details">
+            <div class="my-name" id="sb-my-name">—</div>
+            <div class="my-role">학생</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sidebar-section-title">
+          참여 학생 <span class="student-count" id="student-count">0</span>
+        </div>
+        <div class="student-list" id="student-list"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="exit-btn" id="exit-btn">🚪 강의실 나가기</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="chat">💬 채팅</button>
+      <button class="tab-btn" data-tab="survey">📊 설문</button>
+      <button class="tab-btn" data-tab="resources">📚 교육자료</button>
+      <button class="tab-btn" data-tab="ai">🤖 AI</button>
+    </div>
+
+    <div class="tab-content">
+      <!-- Chat -->
+      <div class="tab-pane active" data-pane="chat">
+        <div class="chat-feed" id="chat-feed"></div>
+        <div class="chat-input-area">
+          <input type="file" id="file-input" style="display:none" accept="*/*">
+          <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부">📎</button>
+          <input type="text" class="chat-input" id="chat-input" placeholder="메시지 입력...">
+          <button class="chat-send-btn" id="chat-send-btn" title="전송">➤</button>
+        </div>
+      </div>
+
+      <!-- Survey -->
+      <div class="tab-pane" data-pane="survey">
+        <div class="surveys-pane" id="survey-feed">
+          <div class="empty-state" id="survey-empty">
+            <div class="empty-icon">📊</div>
+            <p>진행 중인 설문이 없습니다</p>
+          </div>
+          <div id="active-survey-card" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Resources -->
+      <div class="tab-pane" data-pane="resources">
+        <div class="student-resources-pane" id="student-resources-pane">
+          <div class="empty-state" id="resources-empty">
+            <div class="empty-icon">📚</div>
+            <p>공유된 교육자료가 없습니다<br>강사가 자료를 공유하면 여기에 표시됩니다</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI -->
+      <div class="tab-pane" data-pane="ai">
+        <div class="ai-pane">
+          <div class="ai-settings">
+            <input type="password" class="ai-key-input" id="ai-api-key" placeholder="OpenRouter API 키 입력">
+            <select class="ai-model-select" id="ai-model">
+              <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+              <option value="openai/gpt-4o">GPT-4o</option>
+              <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
+              <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+              <option value="google/gemini-flash-1.5">Gemini Flash 1.5</option>
+              <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B (Free)</option>
+            </select>
+          </div>
+          <div class="ai-feed" id="ai-feed"></div>
+          <div class="ai-input-area">
+            <textarea class="ai-input" id="ai-input" placeholder="AI에게 질문하세요..." rows="1"></textarea>
+            <button class="chat-send-btn" id="ai-send-btn" title="전송">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Survey Results ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="results-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">📊 설문 결과</div>
+    <div id="results-question" class="fw-600 mt-8" style="margin-bottom:16px"></div>
+    <div id="results-bars"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="results-close-btn" style="width:auto">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/student.js"></script>
+</body>
+</html>
