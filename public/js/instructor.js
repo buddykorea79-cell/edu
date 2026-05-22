@@ -199,6 +199,26 @@ $('file-input').addEventListener('change', async function() {
   this.value = '';
 });
 
+// ── Room expiry display ────────────────────────────────────────────────────
+function updateExpiryDisplay() {
+  const el = $('room-expire-info');
+  if (!el) return;
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const diff = midnight - now;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  el.textContent = `방 유지: 오늘 자정까지 (${h}시간 ${m}분 남음)`;
+}
+
+// ── Room expired ───────────────────────────────────────────────────────────
+socket.on('room:expired', ({ reason }) => {
+  alert(reason || '강의방이 만료되었습니다. 처음 화면으로 돌아갑니다.');
+  socket.disconnect();
+  window.location.href = '/';
+});
+
 // ── Socket: instructor joined ──────────────────────────────────────────────
 socket.on('instructor:joined', data => {
   surveys = data.surveys || [];
@@ -210,6 +230,9 @@ socket.on('instructor:joined', data => {
   renderStudentList(data.students || []);
   renderSurveys();
   renderResources();
+
+  updateExpiryDisplay();
+  setInterval(updateExpiryDisplay, 60000);
 });
 
 // ── Socket: messages ───────────────────────────────────────────────────────

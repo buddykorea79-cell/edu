@@ -391,6 +391,11 @@ label {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.room-expire-info {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  margin-top: var(--space-1);
+}
 
 .sidebar-body {
   flex: 1;
@@ -798,6 +803,12 @@ label {
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   box-shadow: var(--shadow-sm);
+}
+.resource-action-row {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
 }
 .resource-list-title {
   font-size: var(--text-sm);

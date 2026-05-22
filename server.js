@@ -434,6 +434,29 @@ io.on('connection', socket => {
   });
 });
 
+// ── Midnight room cleanup ─────────────────────────────────────────────────────
+function scheduleRoomCleanup() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const msUntilMidnight = midnight.getTime() - now.getTime();
+
+  setTimeout(() => {
+    const count = rooms.size;
+    rooms.clear();
+    socketRoom.clear();
+    socketRole.clear();
+    io.emit('room:expired', { reason: '자정이 지나 오늘의 모든 강의방이 초기화되었습니다.' });
+    console.log(`Midnight cleanup: cleared ${count} rooms at ${new Date().toISOString()}`);
+    scheduleRoomCleanup();
+  }, msUntilMidnight);
+
+  const mins = Math.round(msUntilMidnight / 60000);
+  console.log(`Room cleanup scheduled in ${mins} minutes (at midnight)`);
+}
+
+scheduleRoomCleanup();
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 server.listen(PORT, () => {
   console.log(`EduTalk v3 running on http://localhost:${PORT}`);

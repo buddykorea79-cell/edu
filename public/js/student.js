@@ -110,7 +110,22 @@ socket.on('student:joined', data => {
     sharedResources = data.resources;
     renderStudentResources(false);
   }
+
+  updateExpiryDisplay();
+  setInterval(updateExpiryDisplay, 60000);
 });
+
+function updateExpiryDisplay() {
+  const el = $('room-expire-info');
+  if (!el) return;
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const diff = midnight - now;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  el.textContent = `방 유지: 오늘 자정까지 (${h}시간 ${m}분 남음)`;
+}
 
 socket.on('app:error', ({ message }) => {
   showJoinError(message);
@@ -356,18 +371,37 @@ function createResourceCard(r, badge) {
 
   const icon = r.type === 'pdf' ? '📄' : '🌐';
   const badgeHtml = badge ? '<span class="resource-new-badge">NEW</span>' : '';
+  const safeUrl = esc(r.url);
+  const safeName = esc(r.filename || r.title || (r.type === 'pdf' ? 'document.pdf' : r.url));
 
   let bodyHtml;
   if (r.type === 'pdf') {
-    bodyHtml = `<div class="resource-view-body">
-      <a href="${esc(r.url)}" target="_blank" class="resource-pdf-link">
-        📄 ${esc(r.filename || r.title || 'PDF 파일 열기')} — 클릭하여 열기
-      </a>
-      <embed src="${esc(r.url)}" type="application/pdf" class="resource-iframe" style="border-top:1px solid var(--color-border-subtle)">
+    // embed/object 태그는 일부 브라우저에서 부모 페이지 이동을 유발하므로 사용하지 않음
+    bodyHtml = `<div class="resource-view-body" style="padding:var(--space-6)">
+      <p class="text-sm text-gray" style="margin:0 0 var(--space-4) 0">PDF 파일이 공유되었습니다. 아래 버튼으로 열거나 다운로드하세요.</p>
+      <div class="resource-action-row">
+        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-primary" style="width:auto">
+          📄 새 창에서 열기
+        </a>
+        <a href="${safeUrl}" download="${safeName}"
+           class="btn btn-secondary" style="width:auto">
+          ⬇ 다운로드
+        </a>
+      </div>
+      <div class="text-xs text-gray" style="margin-top:var(--space-3)">${safeName}</div>
     </div>`;
   } else {
+    // iframe: allow-same-origin 제외 → 상위 페이지 접근 차단
+    // allow-top-navigation 미포함 → iframe이 부모 페이지 이동 불가
     bodyHtml = `<div class="resource-view-body">
-      <iframe src="${esc(r.url)}" class="resource-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"></iframe>
+      <iframe
+        src="${safeUrl}"
+        class="resource-iframe"
+        sandbox="allow-scripts allow-forms allow-popups allow-presentation"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+      ></iframe>
     </div>`;
   }
 
@@ -376,11 +410,21 @@ function createResourceCard(r, badge) {
       <span>${icon}</span>
       <div class="resource-view-title">${esc(r.title || r.url)}</div>
       ${badgeHtml}
-      <a href="${esc(r.url)}" target="_blank" class="btn btn-sm btn-secondary" style="width:auto;flex-shrink:0">새 탭</a>
+      <a href="${safeUrl}" target="_blank" rel="noopener noreferrer"
+         class="btn btn-sm btn-secondary" style="width:auto;flex-shrink:0">
+        🔗 새 탭
+      </a>
     </div>
     ${bodyHtml}`;
   return card;
 }
+
+// ── Room expired ───────────────────────────────────────────────────────────
+socket.on('room:expired', ({ reason }) => {
+  alert(reason || '강의방이 만료되었습니다. 처음 화면으로 돌아갑니다.');
+  socket.disconnect();
+  window.location.href = '/';
+});
 
 // ── AI Chat ────────────────────────────────────────────────────────────────
 const aiHistory = [];
