@@ -542,13 +542,37 @@ io.on('connection', socket => {
     const width = (typeof seg.width === 'number' && seg.width > 0 && seg.width <= 64) ? seg.width : 3;
     const erase = !!seg.erase;
 
-    const clean = { x0, y0, x1, y1, color, width, erase };
+    const clean = { type: 'stroke', x0, y0, x1, y1, color, width, erase };
 
     if (room.whiteboard.length < MAX_WHITEBOARD_SEGMENTS) {
       room.whiteboard.push(clean);
     }
     // 그린 본인 제외하고 같은 방에 전파
     socket.to(roomCode).emit('whiteboard:draw', clean);
+  });
+
+  // ── Whiteboard: image ────────────────────────────────────────────────────────
+  // 이미지 파일 / 화면 캡처를 보드에 삽입. url 은 우리 업로드 경로(/uploads/)만 허용.
+  socket.on('whiteboard:image', (img) => {
+    const roomCode = socketRoom.get(socket.id);
+    if (!roomCode) return;
+    const room = getRoom(roomCode);
+    if (!room) return;
+
+    if (!img || typeof img !== 'object') return;
+    const { url, x, y, w, h } = img;
+    // 보안: 서버가 발급한 업로드 경로만 허용 (외부 URL 주입 차단)
+    if (typeof url !== 'string' || !/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return;
+    if (![x, y].every(n => typeof n === 'number' && n >= 0 && n <= 1)) return;
+    if (![w, h].every(n => typeof n === 'number' && n > 0 && n <= 1)) return;
+
+    const item = { type: 'image', id: uuidv4(), url, x, y, w, h };
+
+    if (room.whiteboard.length < MAX_WHITEBOARD_SEGMENTS) {
+      room.whiteboard.push(item);
+    }
+    // 삽입한 본인 포함 전체에 전파 (본인도 동일 좌표로 렌더)
+    io.to(roomCode).emit('whiteboard:image', item);
   });
 
   // ── Whiteboard: clear ─────────────────────────────────────────────────────────
