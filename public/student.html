@@ -29,6 +29,12 @@
     <div class="form-group">
       <label>방 코드</label>
       <input type="text" id="join-room-code" placeholder="6자리 방 코드" maxlength="6" pattern="[0-9]{6}">
+      <div id="join-room-info" class="text-xs" style="margin-top:6px;display:none;"></div>
+    </div>
+
+    <div class="form-group hidden" id="join-password-group">
+      <label>방 비밀번호</label>
+      <input type="password" id="join-password" placeholder="방 비밀번호 입력" maxlength="40">
     </div>
 
     <div id="join-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
@@ -78,6 +84,13 @@
         </div>
       </div>
 
+      <div id="staff-section" style="display:none">
+        <div class="sidebar-section-title">
+          강사 · 조교 <span class="student-count" id="staff-count">0</span>
+        </div>
+        <div class="student-list" id="staff-list"></div>
+      </div>
+
       <div>
         <div class="sidebar-section-title">
           참여 학생 <span class="student-count" id="student-count">0</span>
@@ -95,6 +108,7 @@
   <div class="main-content">
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="chat">💬 채팅</button>
+      <button class="tab-btn" data-tab="whiteboard">🎨 화이트보드</button>
       <button class="tab-btn" data-tab="survey">📊 설문</button>
       <button class="tab-btn" data-tab="resources">📚 교육자료</button>
       <button class="tab-btn" data-tab="ai">🤖 AI</button>
@@ -109,6 +123,24 @@
           <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부">📎</button>
           <input type="text" class="chat-input" id="chat-input" placeholder="메시지 입력...">
           <button class="chat-send-btn" id="chat-send-btn" title="전송">➤</button>
+        </div>
+      </div>
+
+      <!-- Whiteboard -->
+      <div class="tab-pane" data-pane="whiteboard">
+        <div class="whiteboard-pane">
+          <div class="whiteboard-toolbar">
+            <div class="wb-colors" id="wb-colors"></div>
+            <label class="wb-size">
+              굵기
+              <input type="range" id="wb-size" min="1" max="24" value="3">
+            </label>
+            <button class="btn btn-sm btn-secondary" id="wb-eraser-btn" style="width:auto">🧽 지우개</button>
+            <button class="btn btn-sm btn-danger hidden" id="wb-clear-btn" style="width:auto">🗑 전체 지우기</button>
+          </div>
+          <div class="whiteboard-canvas-wrap" id="wb-wrap">
+            <canvas id="wb-canvas"></canvas>
+          </div>
         </div>
       </div>
 
@@ -171,6 +203,7 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/js/whiteboard.js"></script>
 <script src="/js/student.js"></script>
 </body>
 </html>
