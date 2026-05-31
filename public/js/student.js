@@ -69,7 +69,21 @@ let activeSurvey = null;
 let myResponses = {};
 let sharedResources = [];
 let expiryIntervalId = null;
+let keepAliveId = null;
 let wbStarted = false;
+
+const KEEP_ALIVE_MS = 10 * 60 * 1000; // 10분 — Render 슬립(15분) 이전에 트래픽 발생
+
+function startKeepAlive() {
+  if (keepAliveId) return;
+  keepAliveId = setInterval(() => {
+    fetch('/api/ping').catch(() => {});
+  }, KEEP_ALIVE_MS);
+}
+
+function stopKeepAlive() {
+  if (keepAliveId) { clearInterval(keepAliveId); keepAliveId = null; }
+}
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -181,6 +195,8 @@ socket.on('student:joined', data => {
   updateExpiryDisplay();
   if (expiryIntervalId) clearInterval(expiryIntervalId);
   expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
+
+  startKeepAlive();
 });
 
 // ── Socket: staff (강사·조교) list ───────────────────────────────────────────
@@ -257,6 +273,7 @@ sidebarOverlay.addEventListener('click', () => {
 // ── Exit ───────────────────────────────────────────────────────────────────
 $('exit-btn').addEventListener('click', () => {
   if (confirm('강의실을 나가시겠습니까?')) {
+    stopKeepAlive();
     socket.disconnect();
     window.location.href = '/';
   }
@@ -525,6 +542,7 @@ function createResourceCard(r, badge) {
 
 // ── Room expired ───────────────────────────────────────────────────────────
 socket.on('room:expired', ({ reason }) => {
+  stopKeepAlive();
   alert(reason || '강의방이 만료되었습니다. 처음 화면으로 돌아갑니다.');
   socket.disconnect();
   window.location.href = '/';

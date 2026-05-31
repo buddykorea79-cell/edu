@@ -50,9 +50,23 @@ let lectureName = '';
 let surveys = [];
 let resources = [];
 let expiryIntervalId = null;
+let keepAliveId = null;
 let setupMode = 'create';   // 'create' | 'assistant'
 let myRole = 'instructor';  // 'instructor' | 'assistant'
 let wbStarted = false;
+
+const KEEP_ALIVE_MS = 10 * 60 * 1000; // 10분 — Render 슬립(15분) 이전에 트래픽 발생
+
+function startKeepAlive() {
+  if (keepAliveId) return;
+  keepAliveId = setInterval(() => {
+    fetch('/api/ping').catch(() => {});
+  }, KEEP_ALIVE_MS);
+}
+
+function stopKeepAlive() {
+  if (keepAliveId) { clearInterval(keepAliveId); keepAliveId = null; }
+}
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -187,6 +201,7 @@ $('share-link-btn').addEventListener('click', () => {
 // ── Exit ───────────────────────────────────────────────────────────────────
 $('exit-btn').addEventListener('click', () => {
   if (confirm('강의를 종료하시겠습니까?')) {
+    stopKeepAlive();
     socket.disconnect();
     window.location.href = '/';
   }
@@ -260,6 +275,7 @@ function updateExpiryDisplay() {
 
 // ── Room expired ───────────────────────────────────────────────────────────
 socket.on('room:expired', ({ reason }) => {
+  stopKeepAlive();
   alert(reason || '강의방이 만료되었습니다. 처음 화면으로 돌아갑니다.');
   socket.disconnect();
   window.location.href = '/';
@@ -303,6 +319,8 @@ socket.on('instructor:joined', data => {
   updateExpiryDisplay();
   if (expiryIntervalId) clearInterval(expiryIntervalId);
   expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
+
+  startKeepAlive();
 });
 
 // ── Socket: staff (조교) list ───────────────────────────────────────────────

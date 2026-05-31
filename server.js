@@ -93,6 +93,11 @@ const DEPLOY_MSG      = process.env.RENDER_GIT_COMMIT_MESSAGE || null;
 const DEPLOY_BRANCH   = process.env.RENDER_GIT_BRANCH     || null;
 
 // ── REST API ──────────────────────────────────────────────────────────────────
+// Keep-alive ping — 클라이언트(강사/학생)가 10분마다 호출해 Render 슬립을 방지
+app.get('/api/ping', (req, res) => {
+  res.json({ ok: true, rooms: rooms.size, ts: Date.now() });
+});
+
 app.get('/api/deploy-info', (req, res) => {
   res.json({
     startedAt: SERVER_START_TIME,
