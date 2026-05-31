@@ -8,6 +8,21 @@ const timeStr = ts => {
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 };
 
+// 텍스트 내 http(s) URL을 새 창에서 열리는 링크로 변환 (XSS 방지: escape 후 치환)
+function linkify(text) {
+  if (!text) return '';
+  const urlRe = /(https?:\/\/[^\s<>"']+)/g;
+  let out = '', last = 0, m;
+  while ((m = urlRe.exec(text)) !== null) {
+    out += esc(text.slice(last, m.index));
+    const url = m[0];
+    out += `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="chat-link">${esc(url)}</a>`;
+    last = m.index + url.length;
+  }
+  out += esc(text.slice(last));
+  return out;
+}
+
 function showToast(msg, duration = 2500) {
   const t = document.createElement('div');
   t.className = 'toast';
@@ -190,11 +205,11 @@ function renderMsg(container, msg) {
     div.className = `msg ${isMe ? 'msg-me' : 'msg-other'}`;
     if (msg.type === 'file') {
       div.innerHTML = `${!isMe ? `<div class="msg-sender">${esc((msg.senderEmoji||'') + ' ' + (msg.senderName||''))}</div>` : ''}
-        <div class="msg-bubble"><a href="${esc(msg.url)}" target="_blank" class="file-link">📎 ${esc(msg.filename)}</a></div>
+        <div class="msg-bubble"><a href="${esc(msg.url)}" target="_blank" rel="noopener noreferrer" class="file-link">📎 ${esc(msg.filename)}</a></div>
         <div class="msg-time">${timeStr(msg.timestamp)}</div>`;
     } else {
       div.innerHTML = `${!isMe ? `<div class="msg-sender">${esc((msg.senderEmoji||'') + ' ' + (msg.senderName||''))}</div>` : ''}
-        <div class="msg-bubble">${esc(msg.text)}</div>
+        <div class="msg-bubble">${linkify(msg.text)}</div>
         <div class="msg-time">${timeStr(msg.timestamp)}</div>`;
     }
   }
@@ -501,15 +516,16 @@ function renderResources() {
     return;
   }
   section.style.display = '';
+  // 강사 자료 목록: 항목 전체를 새 창 링크로 만들어 클릭 시 바로 열리게 함
   itemsEl.innerHTML = [...resources].reverse().map(r => `
-    <div class="resource-item">
+    <a class="resource-item" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">
       <div class="resource-icon">${r.type === 'pdf' ? '📄' : '🌐'}</div>
       <div class="resource-info">
         <div class="resource-title">${esc(r.title || r.url)}</div>
         <div class="resource-url">${esc(r.url)}</div>
       </div>
       <div class="resource-time">${timeStr(r.timestamp)}</div>
-    </div>
+    </a>
   `).join('');
 }
 
