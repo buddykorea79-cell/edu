@@ -34,6 +34,7 @@ let roomCode = '';
 let lectureName = '';
 let surveys = [];
 let resources = [];
+let expiryIntervalId = null;
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -232,7 +233,8 @@ socket.on('instructor:joined', data => {
   renderResources();
 
   updateExpiryDisplay();
-  setInterval(updateExpiryDisplay, 60000);
+  if (expiryIntervalId) clearInterval(expiryIntervalId);
+  expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
 });
 
 // ── Socket: messages ───────────────────────────────────────────────────────

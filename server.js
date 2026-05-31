@@ -201,6 +201,11 @@ io.on('connection', socket => {
     const room = getRoom(roomCode);
     if (!room) return;
 
+    // 서버측 입력 검증: 빈 메시지 무시, 길이 제한
+    if (typeof text !== 'string') return;
+    const cleanText = text.trim().slice(0, 2000);
+    if (!cleanText) return;
+
     const role = socketRole.get(socket.id);
     let senderName, senderEmoji;
 
@@ -221,7 +226,7 @@ io.on('connection', socket => {
       senderType: role,
       senderName,
       senderEmoji,
-      text,
+      text: cleanText,
       timestamp: Date.now()
     };
     room.messages.push(msg);
@@ -322,6 +327,9 @@ io.on('connection', socket => {
 
     const survey = room.surveys.find(s => s.id === surveyId);
     if (!survey || survey.closed) return;
+
+    // optionIndex 범위 검증: 잘못된 인덱스로 집계가 깨지는 것을 방지
+    if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= survey.options.length) return;
 
     const responses = room.surveyResponses.get(surveyId);
     if (!responses) return;
@@ -425,6 +433,10 @@ io.on('connection', socket => {
         broadcastStudentList(roomCode);
       }
     } else if (role === 'instructor') {
+      // 강사 소켓이 끊기면 stale id 정리 (재접속 시 instructor:join 에서 다시 설정)
+      if (room.instructorSocketId === socket.id) {
+        room.instructorSocketId = null;
+      }
       // Notify students instructor left
       io.to(roomCode).emit('message:new', systemMsg('강사님이 퇴장했습니다.'));
     }

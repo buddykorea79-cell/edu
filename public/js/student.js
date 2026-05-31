@@ -53,6 +53,7 @@ let roomCode = '';
 let activeSurvey = null;
 let myResponses = {};
 let sharedResources = [];
+let expiryIntervalId = null;
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -112,7 +113,8 @@ socket.on('student:joined', data => {
   }
 
   updateExpiryDisplay();
-  setInterval(updateExpiryDisplay, 60000);
+  if (expiryIntervalId) clearInterval(expiryIntervalId);
+  expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
 });
 
 function updateExpiryDisplay() {
@@ -355,12 +357,12 @@ function renderStudentResources(isNew) {
   if (isNew) {
     const r = sharedResources[sharedResources.length - 1];
     const card = createResourceCard(r, true);
-    pane.insertBefore(card, emptyEl.nextSibling);
+    emptyEl.insertAdjacentElement('afterend', card);
   } else {
-    // Full render: remove old cards
+    // Full render: remove old cards, then insert each in array order so newest (last) ends up at top
     pane.querySelectorAll('.resource-view-card').forEach(el => el.remove());
-    [...sharedResources].reverse().forEach(r => {
-      pane.insertBefore(createResourceCard(r, false), emptyEl.nextSibling);
+    sharedResources.forEach(r => {
+      emptyEl.insertAdjacentElement('afterend', createResourceCard(r, false));
     });
   }
 }
@@ -394,6 +396,8 @@ function createResourceCard(r, badge) {
   } else {
     // iframe: allow-same-origin 제외 → 상위 페이지 접근 차단
     // allow-top-navigation 미포함 → iframe이 부모 페이지 이동 불가
+    // 일부 사이트(구글/유튜브 등)는 X-Frame-Options/CSP로 임베드를 차단하므로
+    // 미리보기가 비어 보일 수 있다는 안내와 새 탭 열기 버튼을 함께 제공
     bodyHtml = `<div class="resource-view-body">
       <iframe
         src="${safeUrl}"
@@ -402,6 +406,10 @@ function createResourceCard(r, badge) {
         loading="lazy"
         referrerpolicy="no-referrer"
       ></iframe>
+      <div class="resource-iframe-note">
+        <span class="text-xs text-gray">미리보기가 비어 있나요? 일부 사이트는 보안 정책상 임베드를 차단합니다.</span>
+        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="width:auto">🔗 새 탭에서 열기</a>
+      </div>
     </div>`;
   }
 
