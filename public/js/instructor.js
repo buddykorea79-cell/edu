@@ -34,6 +34,10 @@ let roomCode = '';
 let lectureName = '';
 let surveys = [];
 let resources = [];
+let expiryIntervalId = null;
+let setupMode = 'create';   // 'create' | 'assistant'
+let myRole = 'instructor';  // 'instructor' | 'assistant'
+let wbStarted = false;
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -80,29 +84,49 @@ function showError(id, msg) {
 }
 
 // ── Setup ──────────────────────────────────────────────────────────────────
+// 역할 토글: 강의실 만들기 / 조교로 참여
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setupMode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const isAssistant = setupMode === 'assistant';
+    $('setup-lecture-group').classList.toggle('hidden', isAssistant);
+    $('setup-assistant-name-group').classList.toggle('hidden', !isAssistant);
+    $('setup-subtitle').textContent = isAssistant ? '조교로 참여하기' : '강의실 만들기';
+    $('setup-password-label').textContent = isAssistant ? '방 비밀번호 (필요시)' : '방 비밀번호 (선택)';
+    $('setup-btn').textContent = isAssistant ? '조교로 입장' : '강의실 열기';
+  });
+});
+
 $('gen-code-btn').addEventListener('click', () => {
   $('setup-room-code').value = Math.floor(100000 + Math.random() * 900000).toString();
 });
 
 $('setup-btn').addEventListener('click', doSetup);
 $('setup-lecture').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
+$('setup-assistant-name').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 $('setup-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
+$('setup-password').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 
 function doSetup() {
-  const name = $('setup-lecture').value.trim();
   const code = $('setup-room-code').value.trim();
-  if (!name) { showError('setup-error', '강의 이름을 입력하세요.'); return; }
+  const password = $('setup-password').value;
   if (!/^\d{6}$/.test(code)) { showError('setup-error', '6자리 숫자 방 코드를 입력하세요.'); return; }
-  lectureName = name;
-  roomCode = code;
-  enterRoom();
-}
 
-function enterRoom() {
-  showScreen('screen-room');
-  $('sb-room-code').textContent = roomCode;
-  $('sb-lecture-name').textContent = lectureName;
-  socket.emit('instructor:join', { roomCode, lectureName });
+  if (setupMode === 'assistant') {
+    const aName = $('setup-assistant-name').value.trim();
+    if (!aName) { showError('setup-error', '조교 이름을 입력하세요.'); return; }
+    roomCode = code;
+    myRole = 'assistant';
+    socket.emit('instructor:join', { roomCode, asAssistant: true, name: aName, password });
+  } else {
+    const name = $('setup-lecture').value.trim();
+    if (!name) { showError('setup-error', '강의 이름을 입력하세요.'); return; }
+    lectureName = name;
+    roomCode = code;
+    myRole = 'instructor';
+    socket.emit('instructor:join', { roomCode, lectureName, password });
+  }
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -113,6 +137,7 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
 function switchTab(name) {
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+  if (name === 'whiteboard' && wbStarted) Whiteboard.show();
 }
 
 // ── Mobile sidebar ─────────────────────────────────────────────────────────
@@ -136,6 +161,12 @@ $('copy-code-btn').addEventListener('click', () => {
 });
 $('sb-room-code').addEventListener('click', () => {
   navigator.clipboard.writeText(roomCode).then(() => showToast('방 코드가 복사되었습니다!'));
+});
+
+// ── 학생 입장 링크 복사 (URL ?code= 방식) ────────────────────────────────────
+$('share-link-btn').addEventListener('click', () => {
+  const link = `${window.location.origin}/student.html?code=${roomCode}`;
+  navigator.clipboard.writeText(link).then(() => showToast('입장 링크가 복사되었습니다!'));
 });
 
 // ── Exit ───────────────────────────────────────────────────────────────────
@@ -221,6 +252,21 @@ socket.on('room:expired', ({ reason }) => {
 
 // ── Socket: instructor joined ──────────────────────────────────────────────
 socket.on('instructor:joined', data => {
+  myRole = data.role || myRole;
+  lectureName = data.lectureName || lectureName;
+
+  showScreen('screen-room');
+  $('sb-room-code').textContent = roomCode;
+  $('sb-lecture-name').textContent = lectureName;
+
+  // 조교 모드 표시
+  const badge = $('sb-role-badge');
+  if (badge) badge.classList.toggle('hidden', myRole !== 'assistant');
+
+  // 정원 안내
+  const capHint = $('capacity-hint');
+  if (capHint && data.capacity) capHint.textContent = `/ ${data.capacity}`;
+
   surveys = data.surveys || [];
   resources = data.resources || [];
 
@@ -228,12 +274,45 @@ socket.on('instructor:joined', data => {
   (data.messages || []).forEach(m => renderMsg(chatFeed, m));
 
   renderStudentList(data.students || []);
+  renderStaffList(data.assistants || []);
   renderSurveys();
   renderResources();
 
+  // 화이트보드 초기화 + 누적 내용 재생
+  if (!wbStarted) {
+    Whiteboard.init({ socket, canClear: true });
+    wbStarted = true;
+  }
+  Whiteboard.load(data.whiteboard || []);
+
   updateExpiryDisplay();
-  setInterval(updateExpiryDisplay, 60000);
+  if (expiryIntervalId) clearInterval(expiryIntervalId);
+  expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
 });
+
+// ── Socket: staff (조교) list ───────────────────────────────────────────────
+socket.on('staff:list', staff => renderStaffList(staff));
+
+function renderStaffList(staff) {
+  const section = $('staff-section');
+  const list = $('staff-list');
+  const count = $('staff-count');
+  if (!section || !list) return;
+  if (!staff || staff.length === 0) {
+    section.style.display = 'none';
+    list.innerHTML = '';
+    if (count) count.textContent = '0';
+    return;
+  }
+  section.style.display = '';
+  if (count) count.textContent = staff.length;
+  list.innerHTML = staff.map(s => `
+    <div class="student-item">
+      <span class="student-emoji">🧑‍🏫</span>
+      <span class="student-name">${esc(s.name)}</span>
+    </div>
+  `).join('');
+}
 
 // ── Socket: messages ───────────────────────────────────────────────────────
 socket.on('message:new', msg => renderMsg(chatFeed, msg));
@@ -497,5 +576,10 @@ async function sendAiMessage() {
 
 // ── App error ──────────────────────────────────────────────────────────────
 socket.on('app:error', ({ message }) => {
-  showToast('오류: ' + message);
+  // 입장 전(설정 화면) 단계의 오류는 설정 화면에 표시하고 머무름
+  if (!$('screen-setup').classList.contains('hidden')) {
+    showError('setup-error', message);
+  } else {
+    showToast('오류: ' + message);
+  }
 });

@@ -22,7 +22,24 @@
         <div class="landing-card-desc">방 코드로 입장하고<br>강의에 참여하세요</div>
       </a>
     </div>
-    <div class="landing-footer">EduTalk v3 · 2026</div>
+    <div class="landing-footer" id="landing-footer">EduTalk v3 · 2026</div>
   </div>
+<script>
+fetch('/api/deploy-info')
+  .then(r => r.json())
+  .then(d => {
+    const el = document.getElementById('landing-footer');
+    const ts = new Date(d.startedAt);
+    const pad = n => String(n).padStart(2, '0');
+    const timeStr = `${ts.getFullYear()}.${pad(ts.getMonth()+1)}.${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}`;
+    const commit = d.commit ? ` · ${d.commit.slice(0,7)}` : '';
+    el.textContent = `EduTalk v3 · 2026 · 배포: ${timeStr}${commit}`;
+    el.title = [
+      d.message  ? `커밋 메시지: ${d.message}` : '',
+      d.branch   ? `브랜치: ${d.branch}`       : ''
+    ].filter(Boolean).join('\n') || '';
+  })
+  .catch(() => {});
+</script>
 </body>
 </html>

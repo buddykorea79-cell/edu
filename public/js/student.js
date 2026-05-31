@@ -53,6 +53,8 @@ let roomCode = '';
 let activeSurvey = null;
 let myResponses = {};
 let sharedResources = [];
+let expiryIntervalId = null;
+let wbStarted = false;
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -66,10 +68,51 @@ function showScreen(id) {
 $('join-btn').addEventListener('click', doJoin);
 $('join-name').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('join-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+$('join-password').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+
+// URL ?code=123456 로 접근 시 방 코드 자동 입력 + 방 정보 미리 조회
+(function prefillFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code && /^\d{6}$/.test(code)) {
+    $('join-room-code').value = code;
+    fetchRoomInfo(code);
+    $('join-name').focus();
+  }
+})();
+
+// 방 코드 입력이 끝나면 방 정보(강의명/비밀번호 필요 여부/정원) 조회
+$('join-room-code').addEventListener('change', () => {
+  const code = $('join-room-code').value.trim();
+  if (/^\d{6}$/.test(code)) fetchRoomInfo(code);
+});
+
+async function fetchRoomInfo(code) {
+  const infoEl = $('join-room-info');
+  try {
+    const res = await fetch(`/api/room/${code}`);
+    const data = await res.json();
+    if (!data.exists) {
+      infoEl.style.display = 'block';
+      infoEl.style.color = 'var(--color-error)';
+      infoEl.textContent = '존재하지 않는 방입니다.';
+      $('join-password-group').classList.add('hidden');
+      return;
+    }
+    infoEl.style.display = 'block';
+    infoEl.style.color = 'var(--color-text-tertiary)';
+    const fullTxt = data.full ? ' · 정원 마감' : ` · ${data.count}/${data.capacity}명`;
+    infoEl.textContent = `📚 ${data.lectureName}${fullTxt}`;
+    $('join-password-group').classList.toggle('hidden', !data.requiresPassword);
+  } catch (e) {
+    infoEl.style.display = 'none';
+  }
+}
 
 function doJoin() {
   const name = $('join-name').value.trim();
   const code = $('join-room-code').value.trim();
+  const password = $('join-password').value;
   if (!name) { showJoinError('닉네임을 입력하세요.'); return; }
   if (!/^\d{6}$/.test(code)) { showJoinError('6자리 숫자 방 코드를 입력하세요.'); return; }
 
@@ -77,7 +120,7 @@ function doJoin() {
   myEmoji = selectedEmoji;
   roomCode = code;
 
-  socket.emit('student:join', { roomCode, name: myName, emoji: myEmoji });
+  socket.emit('student:join', { roomCode, name: myName, emoji: myEmoji, password });
 }
 
 function showJoinError(msg) {
@@ -111,9 +154,43 @@ socket.on('student:joined', data => {
     renderStudentResources(false);
   }
 
+  renderStaffList(data.assistants || []);
+
+  // 화이트보드 초기화 + 누적 내용 재생 (학생도 협업 그리기 가능, 전체 지우기는 불가)
+  if (!wbStarted) {
+    Whiteboard.init({ socket, canClear: false });
+    wbStarted = true;
+  }
+  Whiteboard.load(data.whiteboard || []);
+
   updateExpiryDisplay();
-  setInterval(updateExpiryDisplay, 60000);
+  if (expiryIntervalId) clearInterval(expiryIntervalId);
+  expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
 });
+
+// ── Socket: staff (강사·조교) list ───────────────────────────────────────────
+socket.on('staff:list', staff => renderStaffList(staff));
+
+function renderStaffList(staff) {
+  const section = $('staff-section');
+  const list = $('staff-list');
+  const count = $('staff-count');
+  if (!section || !list) return;
+  if (!staff || staff.length === 0) {
+    section.style.display = 'none';
+    list.innerHTML = '';
+    if (count) count.textContent = '0';
+    return;
+  }
+  section.style.display = '';
+  if (count) count.textContent = staff.length;
+  list.innerHTML = staff.map(s => `
+    <div class="student-item">
+      <span class="student-emoji">🧑‍🏫</span>
+      <span class="student-name">${esc(s.name)} <span class="text-xs text-gray">조교</span></span>
+    </div>
+  `).join('');
+}
 
 function updateExpiryDisplay() {
   const el = $('room-expire-info');
@@ -127,8 +204,13 @@ function updateExpiryDisplay() {
   el.textContent = `방 유지: 오늘 자정까지 (${h}시간 ${m}분 남음)`;
 }
 
-socket.on('app:error', ({ message }) => {
+socket.on('app:error', ({ message, code }) => {
   showJoinError(message);
+  // 비밀번호가 필요한 방이면 비밀번호 입력란을 노출
+  if (code === 'PASSWORD') {
+    $('join-password-group').classList.remove('hidden');
+    $('join-password').focus();
+  }
 });
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -139,6 +221,7 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
 function switchTab(name) {
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+  if (name === 'whiteboard' && wbStarted) Whiteboard.show();
 }
 
 // ── Mobile sidebar ─────────────────────────────────────────────────────────
@@ -355,12 +438,12 @@ function renderStudentResources(isNew) {
   if (isNew) {
     const r = sharedResources[sharedResources.length - 1];
     const card = createResourceCard(r, true);
-    pane.insertBefore(card, emptyEl.nextSibling);
+    emptyEl.insertAdjacentElement('afterend', card);
   } else {
-    // Full render: remove old cards
+    // Full render: remove old cards, then insert each in array order so newest (last) ends up at top
     pane.querySelectorAll('.resource-view-card').forEach(el => el.remove());
-    [...sharedResources].reverse().forEach(r => {
-      pane.insertBefore(createResourceCard(r, false), emptyEl.nextSibling);
+    sharedResources.forEach(r => {
+      emptyEl.insertAdjacentElement('afterend', createResourceCard(r, false));
     });
   }
 }
@@ -394,6 +477,8 @@ function createResourceCard(r, badge) {
   } else {
     // iframe: allow-same-origin 제외 → 상위 페이지 접근 차단
     // allow-top-navigation 미포함 → iframe이 부모 페이지 이동 불가
+    // 일부 사이트(구글/유튜브 등)는 X-Frame-Options/CSP로 임베드를 차단하므로
+    // 미리보기가 비어 보일 수 있다는 안내와 새 탭 열기 버튼을 함께 제공
     bodyHtml = `<div class="resource-view-body">
       <iframe
         src="${safeUrl}"
@@ -402,6 +487,10 @@ function createResourceCard(r, badge) {
         loading="lazy"
         referrerpolicy="no-referrer"
       ></iframe>
+      <div class="resource-iframe-note">
+        <span class="text-xs text-gray">미리보기가 비어 있나요? 일부 사이트는 보안 정책상 임베드를 차단합니다.</span>
+        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" style="width:auto">🔗 새 탭에서 열기</a>
+      </div>
     </div>`;
   }
 
