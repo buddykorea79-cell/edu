@@ -86,7 +86,22 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadsDir));
 
+// ── Deploy info (Render 환경변수 활용) ───────────────────────────────────────
+const SERVER_START_TIME = new Date().toISOString();
+const DEPLOY_COMMIT   = process.env.RENDER_GIT_COMMIT     || null;
+const DEPLOY_MSG      = process.env.RENDER_GIT_COMMIT_MESSAGE || null;
+const DEPLOY_BRANCH   = process.env.RENDER_GIT_BRANCH     || null;
+
 // ── REST API ──────────────────────────────────────────────────────────────────
+app.get('/api/deploy-info', (req, res) => {
+  res.json({
+    startedAt: SERVER_START_TIME,
+    commit:    DEPLOY_COMMIT,
+    message:   DEPLOY_MSG,
+    branch:    DEPLOY_BRANCH
+  });
+});
+
 app.post('/api/instructor/auth', (req, res) => {
   const { password } = req.body;
   if (password === INSTRUCTOR_PASSWORD) {
