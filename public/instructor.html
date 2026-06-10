@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- ── Screen: Auth (로그인 / 강사 등록) ─────────────────────────────────── -->
+<!-- ── Screen: Auth (Google 로그인 → 관리자 승인 후 사용) ──────────────────── -->
 <div id="screen-auth" class="screen-wrap">
   <div class="auth-card">
     <div class="logo">
@@ -16,46 +16,35 @@
       <p id="auth-subtitle">강사 로그인</p>
     </div>
 
-    <!-- 로그인 폼 -->
-    <div id="login-form">
-      <div class="form-group">
-        <label>이메일</label>
-        <input type="email" id="login-email" placeholder="instructor@example.com" autofocus>
-      </div>
-      <div class="form-group">
-        <label>비밀번호</label>
-        <input type="password" id="login-password" placeholder="비밀번호 입력">
-      </div>
-      <div id="auth-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-      <button class="btn btn-primary" id="login-btn">로그인</button>
-      <div class="mt-12 text-sm" style="text-align:center">
-        계정이 없나요? <a href="#" id="show-register">강사 등록하기</a>
-      </div>
+    <!-- 확인 중 -->
+    <div id="auth-loading" class="text-sm text-gray" style="text-align:center;padding:24px 0">
+      로그인 상태 확인 중...
     </div>
 
-    <!-- 등록 폼 (최소 정보: 이름·이메일·비밀번호 → 관리자 승인 후 사용) -->
-    <div id="register-form" class="hidden">
-      <div class="form-group">
-        <label>이름</label>
-        <input type="text" id="reg-name" placeholder="홍길동" maxlength="30">
+    <!-- Google 로그인 -->
+    <div id="auth-login" class="hidden">
+      <div id="auth-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+      <button class="btn btn-primary" id="google-login-btn">Google 계정으로 로그인</button>
+      <p class="text-sm text-gray mt-12" style="text-align:center">
+        첫 로그인 시 강사 등록이 자동으로 신청되며,<br>관리자 승인 후 강의실을 열 수 있습니다.
+      </p>
+    </div>
+
+    <!-- 승인 대기 -->
+    <div id="auth-pending" class="hidden">
+      <div class="alert alert-success">
+        <div class="alert-title">승인 대기 중</div>
+        강사 등록 신청이 완료되었습니다.<br>관리자 승인 후 이용할 수 있습니다.
       </div>
-      <div class="form-group">
-        <label>이메일</label>
-        <input type="email" id="reg-email" placeholder="instructor@example.com" maxlength="100">
+      <button class="btn btn-secondary mt-12" id="pending-logout-btn">다른 계정으로 로그인</button>
+    </div>
+
+    <!-- 사용 제한 -->
+    <div id="auth-rejected" class="hidden">
+      <div id="rejected-msg" class="text-sm" style="color:var(--color-error);margin-bottom:12px;">
+        사용이 제한된 계정입니다. 관리자에게 문의하세요.
       </div>
-      <div class="form-group">
-        <label>비밀번호 (4자 이상)</label>
-        <input type="password" id="reg-password" placeholder="로그인에 사용할 비밀번호">
-      </div>
-      <div id="register-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-      <div id="register-success" class="alert alert-success" style="display:none;">
-        <div class="alert-title">등록 완료</div>
-        관리자 승인 후 로그인할 수 있습니다.
-      </div>
-      <button class="btn btn-primary" id="register-btn">등록 신청</button>
-      <div class="mt-12 text-sm" style="text-align:center">
-        이미 계정이 있나요? <a href="#" id="show-login">로그인으로 돌아가기</a>
-      </div>
+      <button class="btn btn-secondary" id="rejected-logout-btn">다른 계정으로 로그인</button>
     </div>
 
     <div class="mt-12 text-sm text-gray" style="text-align:center">
@@ -307,6 +296,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/whiteboard.js"></script>
 <script src="/js/instructor.js"></script>

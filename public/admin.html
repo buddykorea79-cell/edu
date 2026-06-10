@@ -8,19 +8,21 @@
 </head>
 <body>
 
-<!-- ── Screen: Admin Login ───────────────────────────────────────────────── -->
+<!-- ── Screen: Admin Login (Google) ──────────────────────────────────────── -->
 <div id="screen-login" class="screen-wrap">
   <div class="auth-card">
     <div class="logo">
       <h1>🎓 EduTalk</h1>
       <p>관리자 로그인</p>
     </div>
-    <div class="form-group">
-      <label>관리자 비밀번호</label>
-      <input type="password" id="admin-password" placeholder="관리자 비밀번호 입력" autofocus>
+    <div id="login-loading" class="text-sm text-gray" style="text-align:center;padding:24px 0">
+      로그인 상태 확인 중...
     </div>
-    <div id="login-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-    <button class="btn btn-primary" id="login-btn">로그인</button>
+    <div id="login-form" class="hidden">
+      <div id="login-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+      <button class="btn btn-primary" id="google-login-btn">Google 계정으로 로그인</button>
+      <p class="text-sm text-gray mt-12" style="text-align:center">관리자 Google 계정으로만 접근할 수 있습니다.</p>
+    </div>
     <div class="mt-12 text-sm text-gray" style="text-align:center">
       <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
     </div>
@@ -66,6 +68,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/js/admin.js"></script>
 </body>
 </html>

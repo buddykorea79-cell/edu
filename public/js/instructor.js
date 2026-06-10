@@ -76,96 +76,89 @@ function showScreen(id) {
   });
 }
 
-// ── Auth (계정 로그인 / 강사 등록) ──────────────────────────────────────────
-let authToken = sessionStorage.getItem('edutalk_token') || '';
-let myAccountName = sessionStorage.getItem('edutalk_name') || '';
+// ── Auth (Supabase Google OAuth → 관리자 승인 후 사용) ──────────────────────
+let sb = null;             // Supabase 브라우저 클라이언트
+let myAccountName = '';
 
-// 로그인 ↔ 등록 폼 전환
-$('show-register').addEventListener('click', e => {
-  e.preventDefault();
-  $('login-form').classList.add('hidden');
-  $('register-form').classList.remove('hidden');
-  $('auth-subtitle').textContent = '강사 등록';
-});
-$('show-login').addEventListener('click', e => {
-  e.preventDefault();
-  $('register-form').classList.add('hidden');
-  $('login-form').classList.remove('hidden');
-  $('auth-subtitle').textContent = '강사 로그인';
-});
+// 인증 화면 내 상태 전환: loading | login | pending | rejected
+function showAuthState(state) {
+  ['auth-loading', 'auth-login', 'auth-pending', 'auth-rejected'].forEach(id => {
+    const el = $(id);
+    if (el) el.classList.toggle('hidden', id !== 'auth-' + state);
+  });
+}
 
-$('login-btn').addEventListener('click', doLogin);
-$('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-$('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-$('register-btn').addEventListener('click', doRegister);
-$('reg-password').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+// 현재 세션의 access token (supabase-js 가 자동 갱신)
+async function currentToken() {
+  if (!sb) return '';
+  const { data } = await sb.auth.getSession();
+  return (data && data.session) ? data.session.access_token : '';
+}
 
-async function doLogin() {
-  const email = $('login-email').value.trim();
-  const password = $('login-password').value;
-  if (!email || !password) { showError('auth-error', '이메일과 비밀번호를 입력하세요.'); return; }
-  $('login-btn').disabled = true;
-  $('login-btn').textContent = '확인 중...';
+async function initAuth() {
   try {
-    const res = await fetch('/api/instructor/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      authToken = data.token;
-      myAccountName = data.name || '';
-      sessionStorage.setItem('edutalk_token', authToken);
-      sessionStorage.setItem('edutalk_name', myAccountName);
-      // 조교 이름 기본값을 계정 이름으로
-      if (!$('setup-assistant-name').value) $('setup-assistant-name').value = myAccountName;
-      showScreen('screen-setup');
-    } else {
-      showError('auth-error', data.error || '로그인에 실패했습니다.');
+    const cfg = await (await fetch('/api/config')).json();
+    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+      showAuthState('login');
+      showError('auth-error', '서버에 인증이 설정되지 않았습니다. 관리자에게 문의하세요.');
+      $('google-login-btn').disabled = true;
+      return;
     }
-  } catch(e) {
+    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    const token = await currentToken();
+    if (token) await checkProfile(token);
+    else showAuthState('login');
+  } catch (e) {
+    showAuthState('login');
     showError('auth-error', '서버 오류가 발생했습니다.');
   }
-  $('login-btn').disabled = false;
-  $('login-btn').textContent = '로그인';
 }
 
-async function doRegister() {
-  const name = $('reg-name').value.trim();
-  const email = $('reg-email').value.trim();
-  const password = $('reg-password').value;
-  if (!name) { showError('register-error', '이름을 입력하세요.'); return; }
-  if (!email) { showError('register-error', '이메일을 입력하세요.'); return; }
-  if (password.length < 4) { showError('register-error', '비밀번호는 4자 이상이어야 합니다.'); return; }
-  $('register-btn').disabled = true;
-  $('register-btn').textContent = '신청 중...';
+// 서버에 프로필 확인 (첫 로그인이면 pending 으로 자동 등록됨)
+async function checkProfile(token) {
   try {
-    const res = await fetch('/api/instructor/register', {
+    const res = await fetch('/api/instructor/session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
+      headers: { 'Authorization': 'Bearer ' + token }
     });
     const data = await res.json();
-    if (data.ok) {
-      $('register-success').style.display = '';
-      $('reg-name').value = ''; $('reg-email').value = ''; $('reg-password').value = '';
-    } else {
-      showError('register-error', data.error || '등록에 실패했습니다.');
+    if (!data.ok) {
+      showAuthState('login');
+      showError('auth-error', data.error || '인증에 실패했습니다.');
+      return;
     }
-  } catch(e) {
-    showError('register-error', '서버 오류가 발생했습니다.');
+    myAccountName = data.name || '';
+    if (data.status === 'approved') {
+      if (!$('setup-assistant-name').value) $('setup-assistant-name').value = myAccountName;
+      showScreen('screen-setup');
+    } else if (data.status === 'pending') {
+      showAuthState('pending');
+    } else {
+      showAuthState('rejected');
+    }
+  } catch (e) {
+    showAuthState('login');
+    showError('auth-error', '서버 오류가 발생했습니다.');
   }
-  $('register-btn').disabled = false;
-  $('register-btn').textContent = '등록 신청';
 }
 
-// 세션 토큰이 남아 있으면 바로 강의실 설정 화면으로 (서버 재시작 등으로
-// 토큰이 무효하면 입장 시 AUTH 오류로 로그인 화면에 돌아옴)
-if (authToken) {
-  if (!$('setup-assistant-name').value) $('setup-assistant-name').value = myAccountName;
-  showScreen('screen-setup');
+$('google-login-btn').addEventListener('click', async () => {
+  if (!sb) return;
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + '/instructor.html' }
+  });
+});
+
+async function doLogout() {
+  if (sb) await sb.auth.signOut();
+  showScreen('screen-auth');
+  showAuthState('login');
 }
+$('pending-logout-btn').addEventListener('click', doLogout);
+$('rejected-logout-btn').addEventListener('click', doLogout);
+
+initAuth();
 
 function showError(id, msg) {
   const el = $(id);
@@ -200,24 +193,32 @@ $('setup-assistant-name').addEventListener('keydown', e => { if (e.key === 'Ente
 $('setup-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 $('setup-password').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 
-function doSetup() {
+async function doSetup() {
   const code = $('setup-room-code').value.trim();
   const password = $('setup-password').value;
   if (!/^\d{6}$/.test(code)) { showError('setup-error', '6자리 숫자 방 코드를 입력하세요.'); return; }
+
+  const token = await currentToken();
+  if (!token) {
+    showScreen('screen-auth');
+    showAuthState('login');
+    showError('auth-error', '로그인이 만료되었습니다. 다시 로그인하세요.');
+    return;
+  }
 
   if (setupMode === 'assistant') {
     const aName = $('setup-assistant-name').value.trim();
     if (!aName) { showError('setup-error', '조교 이름을 입력하세요.'); return; }
     roomCode = code;
     myRole = 'assistant';
-    socket.emit('instructor:join', { roomCode, asAssistant: true, name: aName, password, token: authToken });
+    socket.emit('instructor:join', { roomCode, asAssistant: true, name: aName, password, token });
   } else {
     const name = $('setup-lecture').value.trim();
     if (!name) { showError('setup-error', '강의 이름을 입력하세요.'); return; }
     lectureName = name;
     roomCode = code;
     myRole = 'instructor';
-    socket.emit('instructor:join', { roomCode, lectureName, password, token: authToken });
+    socket.emit('instructor:join', { roomCode, lectureName, password, token });
   }
 }
 
@@ -673,12 +674,10 @@ async function sendAiMessage() {
 
 // ── App error ──────────────────────────────────────────────────────────────
 socket.on('app:error', ({ message, code }) => {
-  // 인증 만료/무효 — 세션 정리 후 로그인 화면으로
+  // 인증 만료/미승인 — 로그인 화면으로
   if (code === 'AUTH') {
-    sessionStorage.removeItem('edutalk_token');
-    sessionStorage.removeItem('edutalk_name');
-    authToken = '';
     showScreen('screen-auth');
+    showAuthState('login');
     showError('auth-error', message);
     return;
   }

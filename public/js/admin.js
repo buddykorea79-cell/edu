@@ -21,20 +21,41 @@ function dateStr(ts) {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let adminToken = '';
+let sb = null;   // Supabase 브라우저 클라이언트
 
-// ── Login ──────────────────────────────────────────────────────────────────
-$('login-btn').addEventListener('click', doLogin);
-$('admin-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+// ── Login (Supabase Google OAuth) ──────────────────────────────────────────
+function showLoginState(state) {  // 'loading' | 'form'
+  $('login-loading').classList.toggle('hidden', state !== 'loading');
+  $('login-form').classList.toggle('hidden', state !== 'form');
+}
 
-async function doLogin() {
-  const password = $('admin-password').value.trim();
-  if (!password) return;
-  $('login-btn').disabled = true;
+async function initAuth() {
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+      showLoginState('form');
+      showLoginError('서버에 인증이 설정되지 않았습니다.');
+      $('google-login-btn').disabled = true;
+      return;
+    }
+    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) {
+      await tryAdminAuth(data.session.access_token);
+    } else {
+      showLoginState('form');
+    }
+  } catch (e) {
+    showLoginState('form');
+    showLoginError('서버 오류가 발생했습니다.');
+  }
+}
+
+async function tryAdminAuth(accessToken) {
   try {
     const res = await fetch('/api/admin/auth', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
+      headers: { 'Authorization': 'Bearer ' + accessToken }
     });
     const data = await res.json();
     if (data.ok) {
@@ -43,13 +64,26 @@ async function doLogin() {
       $('screen-admin').classList.remove('hidden');
       loadInstructors();
     } else {
+      // 관리자 계정이 아니면 로그아웃 — 다른 계정으로 다시 시도하도록
+      if (sb) await sb.auth.signOut();
+      showLoginState('form');
       showLoginError(data.error || '로그인에 실패했습니다.');
     }
   } catch (e) {
+    showLoginState('form');
     showLoginError('서버 오류가 발생했습니다.');
   }
-  $('login-btn').disabled = false;
 }
+
+$('google-login-btn').addEventListener('click', async () => {
+  if (!sb) return;
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + '/admin.html' }
+  });
+});
+
+initAuth();
 
 function showLoginError(msg) {
   const el = $('login-error');
@@ -66,11 +100,12 @@ async function api(path, opts = {}) {
     ...opts,
     headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, ...(opts.headers || {}) }
   });
-  // 토큰 만료(서버 재시작 등) → 로그인 화면으로
+  // 서버 재시작 등으로 admin 토큰 만료 → Google 재로그인 유도
   if (res.status === 401) {
     adminToken = '';
     $('screen-admin').classList.add('hidden');
     $('screen-login').classList.remove('hidden');
+    showLoginState('form');
     showLoginError('인증이 만료되었습니다. 다시 로그인하세요.');
     throw new Error('unauthorized');
   }
