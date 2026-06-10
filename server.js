@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -13,14 +14,67 @@ const io = new Server(server);
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-const INSTRUCTOR_PASSWORD = fs.readFileSync(
-  path.join(__dirname, 'config/instructor_password.txt'),
-  'utf8'
-).trim();
+
+function readConfigFile(name) {
+  try {
+    return fs.readFileSync(path.join(__dirname, 'config', name), 'utf8').trim();
+  } catch (e) {
+    return null;
+  }
+}
+// 관리자 비밀번호: config/admin_password.txt (없으면 기존 강사 비밀번호 파일로 대체)
+const ADMIN_PASSWORD = readConfigFile('admin_password.txt') || readConfigFile('instructor_password.txt');
 
 const MAX_ROOMS = 5;              // 동시에 개설 가능한 최대 방 개수
 const ROOM_CAPACITY = 50;         // 방당 최대 학생 수
 const MAX_WHITEBOARD_SEGMENTS = 100000;  // 화이트보드 누적 세그먼트 상한 (메모리 보호)
+const MAX_MESSAGES = 500;         // 방별 채팅 보관 상한 (메모리 보호, 초과 시 오래된 것부터 삭제)
+
+// ── Instructor accounts (등록 → 관리자 승인 → 로그인) ─────────────────────────
+// data/instructors.json 에 영속화. Render 무료 플랜은 디스크가 휘발성이므로
+// 재배포/재시작 시 초기화됨 — 영구 보관이 필요하면 Render Disk 또는 외부 DB 필요.
+const DATA_DIR = path.join(__dirname, 'data');
+const INSTRUCTORS_FILE = path.join(DATA_DIR, 'instructors.json');
+
+let instructorAccounts = [];
+function loadInstructorAccounts() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(INSTRUCTORS_FILE, 'utf8'));
+    instructorAccounts = Array.isArray(raw.instructors) ? raw.instructors : [];
+  } catch (e) {
+    instructorAccounts = [];
+  }
+}
+function saveInstructorAccounts() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(INSTRUCTORS_FILE, JSON.stringify({ instructors: instructorAccounts }, null, 2));
+  } catch (e) {
+    console.error('Failed to save instructors:', e.message);
+  }
+}
+loadInstructorAccounts();
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(String(password), salt, 32).toString('hex');
+}
+
+// 발급된 세션 토큰 (메모리 — 서버 재시작 시 재로그인 필요)
+const instructorTokens = new Map(); // token → email
+const adminTokens = new Set();
+
+function getInstructorByToken(token) {
+  const email = instructorTokens.get(token);
+  if (!email) return null;
+  const acct = instructorAccounts.find(a => a.email === email);
+  return (acct && acct.status === 'approved') ? acct : null;
+}
+
+function revokeTokensFor(email) {
+  for (const [t, e] of instructorTokens) {
+    if (e === email) instructorTokens.delete(t);
+  }
+}
 
 // ── Uploads ───────────────────────────────────────────────────────────────────
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -84,7 +138,15 @@ function resolveSender(room, socketId, role) {
 // ── Express middleware ────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    // 업로드된 HTML/SVG/JS가 same-origin 으로 실행되는 것(stored XSS) 방지 — 다운로드로 강제
+    if (/\.(html?|svg|xml|js|mjs|xhtml)$/i.test(filePath)) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  }
+}));
 
 // ── Deploy info (Render 환경변수 활용) ───────────────────────────────────────
 const SERVER_START_TIME = new Date().toISOString();
@@ -107,13 +169,115 @@ app.get('/api/deploy-info', (req, res) => {
   });
 });
 
-app.post('/api/instructor/auth', (req, res) => {
-  const { password } = req.body;
-  if (password === INSTRUCTOR_PASSWORD) {
-    res.json({ ok: true });
-  } else {
-    res.status(401).json({ ok: false, error: '비밀번호가 틀렸습니다.' });
+// ── 강사 계정: 등록 (최소 정보 — 이름·이메일·비밀번호, 관리자 승인 후 사용) ────
+app.post('/api/instructor/register', (req, res) => {
+  const { name, email, password } = req.body || {};
+  const cleanName = typeof name === 'string' ? name.trim().slice(0, 30) : '';
+  const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase().slice(0, 100) : '';
+
+  if (!cleanName) return res.status(400).json({ ok: false, error: '이름을 입력하세요.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({ ok: false, error: '올바른 이메일 주소를 입력하세요.' });
   }
+  if (typeof password !== 'string' || password.length < 4) {
+    return res.status(400).json({ ok: false, error: '비밀번호는 4자 이상이어야 합니다.' });
+  }
+  if (instructorAccounts.some(a => a.email === cleanEmail)) {
+    return res.status(409).json({ ok: false, error: '이미 등록된 이메일입니다.' });
+  }
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  instructorAccounts.push({
+    id: uuidv4(),
+    name: cleanName,
+    email: cleanEmail,
+    salt,
+    passHash: hashPassword(password, salt),
+    status: 'pending',   // pending → approved | rejected (관리자가 변경)
+    createdAt: Date.now(),
+    approvedAt: null
+  });
+  saveInstructorAccounts();
+  res.json({ ok: true, message: '등록이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.' });
+});
+
+// ── 강사 계정: 로그인 → 세션 토큰 발급 (승인된 계정만) ────────────────────────
+app.post('/api/instructor/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const acct = instructorAccounts.find(a => a.email === cleanEmail);
+
+  if (!acct || acct.passHash !== hashPassword(password || '', acct.salt)) {
+    return res.status(401).json({ ok: false, error: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+  }
+  if (acct.status === 'pending') {
+    return res.status(403).json({ ok: false, error: '관리자 승인 대기 중입니다. 승인 후 이용할 수 있습니다.' });
+  }
+  if (acct.status !== 'approved') {
+    return res.status(403).json({ ok: false, error: '사용이 제한된 계정입니다. 관리자에게 문의하세요.' });
+  }
+
+  const token = crypto.randomBytes(24).toString('hex');
+  instructorTokens.set(token, acct.email);
+  res.json({ ok: true, token, name: acct.name, email: acct.email });
+});
+
+// ── 관리자: 로그인 ─────────────────────────────────────────────────────────────
+app.post('/api/admin/auth', (req, res) => {
+  const { password } = req.body || {};
+  if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
+    const token = crypto.randomBytes(24).toString('hex');
+    adminTokens.add(token);
+    res.json({ ok: true, token });
+  } else {
+    res.status(401).json({ ok: false, error: '관리자 비밀번호가 틀렸습니다.' });
+  }
+});
+
+function requireAdmin(req, res, next) {
+  const token = req.headers['x-admin-token'];
+  if (!token || !adminTokens.has(token)) {
+    return res.status(401).json({ ok: false, error: '관리자 인증이 필요합니다.' });
+  }
+  next();
+}
+
+// ── 관리자: 강사 목록 조회 ─────────────────────────────────────────────────────
+app.get('/api/admin/instructors', requireAdmin, (req, res) => {
+  res.json({
+    ok: true,
+    instructors: instructorAccounts.map(a => ({
+      id: a.id, name: a.name, email: a.email,
+      status: a.status, createdAt: a.createdAt, approvedAt: a.approvedAt
+    }))
+  });
+});
+
+// ── 관리자: 승인 / 거절 / 보류 ─────────────────────────────────────────────────
+app.post('/api/admin/instructors/:id/status', requireAdmin, (req, res) => {
+  const { status } = req.body || {};
+  if (!['approved', 'rejected', 'pending'].includes(status)) {
+    return res.status(400).json({ ok: false, error: '잘못된 상태값입니다.' });
+  }
+  const acct = instructorAccounts.find(a => a.id === req.params.id);
+  if (!acct) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
+
+  acct.status = status;
+  if (status === 'approved') acct.approvedAt = Date.now();
+  else revokeTokensFor(acct.email);   // 승인 취소/거절 시 기존 세션 즉시 무효화
+
+  saveInstructorAccounts();
+  res.json({ ok: true });
+});
+
+// ── 관리자: 계정 삭제 ──────────────────────────────────────────────────────────
+app.delete('/api/admin/instructors/:id', requireAdmin, (req, res) => {
+  const idx = instructorAccounts.findIndex(a => a.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
+  const [removed] = instructorAccounts.splice(idx, 1);
+  revokeTokensFor(removed.email);
+  saveInstructorAccounts();
+  res.json({ ok: true });
 });
 
 // 방 정보 조회 (URL 코드 접근 / 입장 전 비밀번호·정원 안내용)
@@ -224,9 +388,30 @@ function systemMsg(text) {
   };
 }
 
+// 방 메시지 저장 — 상한 초과 시 오래된 메시지부터 삭제 (메모리 보호)
+function pushMessage(room, msg) {
+  room.messages.push(msg);
+  if (room.messages.length > MAX_MESSAGES) room.messages.shift();
+}
+
 io.on('connection', socket => {
   // ── Instructor join ────────────────────────────────────────────────────────
-  socket.on('instructor:join', ({ roomCode, lectureName, password, asAssistant, name }) => {
+  socket.on('instructor:join', (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const { roomCode, lectureName, password, asAssistant, name, token } = payload;
+
+    // 승인된 강사 계정 토큰 확인 (강사·조교 공통)
+    const acct = getInstructorByToken(token);
+    if (!acct) {
+      socket.emit('app:error', { message: '강사 인증이 만료되었거나 유효하지 않습니다. 다시 로그인하세요.', code: 'AUTH' });
+      return;
+    }
+
+    if (typeof roomCode !== 'string' || !/^\d{6}$/.test(roomCode)) {
+      socket.emit('app:error', { message: '올바른 방 코드가 아닙니다.' });
+      return;
+    }
+
     let room = getRoom(roomCode);
     let role;
 
@@ -240,12 +425,12 @@ io.on('connection', socket => {
         socket.emit('app:error', { message: '방 비밀번호가 일치하지 않습니다.' });
         return;
       }
-      const assistantName = (typeof name === 'string' && name.trim()) ? name.trim().slice(0, 20) : '조교';
-      room.assistants.set(socket.id, { name: assistantName });
+      const assistantName = (typeof name === 'string' && name.trim()) ? name.trim().slice(0, 20) : acct.name;
+      room.assistants.set(socket.id, { name: assistantName, email: acct.email });
       role = 'assistant';
 
       const msg = systemMsg(`🧑‍🏫 ${assistantName} 조교님이 참여했습니다.`);
-      room.messages.push(msg);
+      pushMessage(room, msg);
       io.to(roomCode).emit('message:new', msg);
     } else {
       // 주강사: 신규 개설 또는 재접속(소유권 회수)
@@ -255,7 +440,13 @@ io.on('connection', socket => {
           return;
         }
         room = createRoom(roomCode, lectureName, socket.id, { password });
+        room.ownerEmail = acct.email;
       } else {
+        // 다른 강사가 만든 방의 코드를 알아내 소유권을 가로채는 것 방지
+        if (room.ownerEmail && room.ownerEmail !== acct.email) {
+          socket.emit('app:error', { message: '이미 다른 강사가 운영 중인 방 코드입니다. 다른 코드를 사용하세요.' });
+          return;
+        }
         room.instructorSocketId = socket.id;
       }
       role = 'instructor';
@@ -285,7 +476,18 @@ io.on('connection', socket => {
   });
 
   // ── Student join ───────────────────────────────────────────────────────────
-  socket.on('student:join', ({ roomCode, name, emoji, password }) => {
+  socket.on('student:join', (payload) => {
+    if (!payload || typeof payload !== 'object') return;
+    const { roomCode, password } = payload;
+
+    // 입력 정규화: 이름·이모지 길이 제한
+    const name = typeof payload.name === 'string' ? payload.name.trim().slice(0, 20) : '';
+    const emoji = typeof payload.emoji === 'string' ? payload.emoji.slice(0, 8) : '🙂';
+    if (!name) {
+      socket.emit('app:error', { message: '닉네임을 입력하세요.' });
+      return;
+    }
+
     const room = getRoom(roomCode);
     if (!room) {
       socket.emit('app:error', { message: '존재하지 않는 방입니다.' });
@@ -310,7 +512,7 @@ io.on('connection', socket => {
     socket.join(roomCode);
 
     const msg = systemMsg(`${emoji} ${name}님이 입장했습니다.`);
-    room.messages.push(msg);
+    pushMessage(room, msg);
     io.to(roomCode).emit('message:new', msg);
 
     socket.emit('student:joined', {
@@ -353,7 +555,7 @@ io.on('connection', socket => {
       text: cleanText,
       timestamp: Date.now()
     };
-    room.messages.push(msg);
+    pushMessage(room, msg);
     io.to(roomCode).emit('message:new', msg);
   });
 
@@ -363,6 +565,11 @@ io.on('connection', socket => {
     if (!roomCode) return;
     const room = getRoom(roomCode);
     if (!room) return;
+
+    // 보안: 서버가 발급한 업로드 경로만 허용 (javascript: 등 악성 링크 주입 차단)
+    if (typeof url !== 'string' || !/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return;
+    const cleanFilename = (typeof filename === 'string' && filename.trim())
+      ? filename.trim().slice(0, 200) : '파일';
 
     const role = socketRole.get(socket.id);
     const sender = resolveSender(room, socket.id, role);
@@ -376,10 +583,10 @@ io.on('connection', socket => {
       senderName: sender.name,
       senderEmoji: sender.emoji,
       url,
-      filename,
+      filename: cleanFilename,
       timestamp: Date.now()
     };
-    room.messages.push(msg);
+    pushMessage(room, msg);
     io.to(roomCode).emit('message:new', msg);
   });
 
@@ -415,12 +622,21 @@ io.on('connection', socket => {
     const room = getRoom(roomCode);
     if (!room || !canInstruct(room, socket.id)) return;
 
+    // 서버측 검증: 잘못된 페이로드(배열 아님 등)로 인한 오류 방지
+    if (typeof question !== 'string' || !question.trim()) return;
+    if (!Array.isArray(options)) return;
+    const cleanOptions = options
+      .filter(o => typeof o === 'string' && o.trim())
+      .map(o => o.trim().slice(0, 200))
+      .slice(0, 10);
+    if (cleanOptions.length < 2) return;
+
     const survey = {
       id: uuidv4(),
       type: 'custom',
-      question,
-      options,
-      results: new Array(options.length).fill(0),
+      question: question.trim().slice(0, 300),
+      options: cleanOptions,
+      results: new Array(cleanOptions.length).fill(0),
       total: 0,
       closed: false,
       timestamp: Date.now()
@@ -513,12 +729,22 @@ io.on('connection', socket => {
     const room = getRoom(roomCode);
     if (!room || !canInstruct(room, socket.id)) return;
 
+    // 보안: URL 형식 서버측 검증 — javascript: 등 악성 스킴 주입 차단
+    if (typeof url !== 'string' || url.length > 2000) return;
+    if (type === 'url') {
+      if (!/^https?:\/\//i.test(url)) return;
+    } else if (type === 'pdf') {
+      if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(url)) return;
+    } else {
+      return;
+    }
+
     const resource = {
       id: uuidv4(),
       type,       // 'url' | 'pdf'
       url,
-      filename: filename || null,
-      title: title || url,
+      filename: (typeof filename === 'string' ? filename.slice(0, 200) : null) || null,
+      title: (typeof title === 'string' && title.trim() ? title.trim().slice(0, 300) : url),
       timestamp: Date.now()
     };
 
@@ -602,7 +828,7 @@ io.on('connection', socket => {
       if (s) {
         room.students.delete(socket.id);
         const msg = systemMsg(`${s.emoji} ${s.name}님이 퇴장했습니다.`);
-        room.messages.push(msg);
+        pushMessage(room, msg);
         io.to(roomCode).emit('message:new', msg);
         broadcastStudentList(roomCode);
       }

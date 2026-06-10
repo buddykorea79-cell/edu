@@ -22,13 +22,16 @@
         <div class="landing-card-desc">방 코드로 입장하고<br>강의에 참여하세요</div>
       </a>
     </div>
-    <div class="landing-footer" id="landing-footer">EduTalk v3 · 2026</div>
+    <div class="landing-footer">
+      <span id="footer-info">EduTalk v3 · 2026</span>
+      · <a href="/admin.html" style="color:inherit">관리자</a>
+    </div>
   </div>
 <script>
 fetch('/api/deploy-info')
   .then(r => r.json())
   .then(d => {
-    const el = document.getElementById('landing-footer');
+    const el = document.getElementById('footer-info');
     const ts = new Date(d.startedAt);
     const pad = n => String(n).padStart(2, '0');
     const timeStr = `${ts.getFullYear()}.${pad(ts.getMonth()+1)}.${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}`;

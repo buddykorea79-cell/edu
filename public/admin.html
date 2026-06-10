@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTalk - 관리자</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ── Screen: Admin Login ───────────────────────────────────────────────── -->
+<div id="screen-login" class="screen-wrap">
+  <div class="auth-card">
+    <div class="logo">
+      <h1>🎓 EduTalk</h1>
+      <p>관리자 로그인</p>
+    </div>
+    <div class="form-group">
+      <label>관리자 비밀번호</label>
+      <input type="password" id="admin-password" placeholder="관리자 비밀번호 입력" autofocus>
+    </div>
+    <div id="login-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+    <button class="btn btn-primary" id="login-btn">로그인</button>
+    <div class="mt-12 text-sm text-gray" style="text-align:center">
+      <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Screen: Admin Dashboard ───────────────────────────────────────────── -->
+<div id="screen-admin" class="screen-wrap hidden">
+  <div class="admin-card">
+    <div class="admin-header">
+      <div>
+        <h2 style="font-size:var(--text-2xl);color:var(--color-primary-700)">👨‍💼 강사 관리</h2>
+        <p class="text-sm text-gray" style="margin:4px 0 0">강사 등록 신청을 승인·거절하고 계정을 관리합니다</p>
+      </div>
+      <div class="admin-header-actions">
+        <button class="btn btn-secondary btn-sm" id="refresh-btn">🔄 새로고침</button>
+        <a href="/" class="btn btn-ghost btn-sm">홈으로</a>
+      </div>
+    </div>
+
+    <div class="admin-stats" id="admin-stats">
+      <span class="admin-stat stat-pending">대기 <b id="stat-pending">0</b></span>
+      <span class="admin-stat stat-approved">승인 <b id="stat-approved">0</b></span>
+      <span class="admin-stat stat-rejected">거절 <b id="stat-rejected">0</b></span>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>이메일</th>
+            <th>상태</th>
+            <th>등록일</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody id="instructor-rows">
+          <tr><td colspan="5" class="text-sm text-gray" style="text-align:center;padding:32px">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>

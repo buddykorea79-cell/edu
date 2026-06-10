@@ -8,19 +8,56 @@
 </head>
 <body>
 
-<!-- ── Screen: Auth ──────────────────────────────────────────────────────── -->
+<!-- ── Screen: Auth (로그인 / 강사 등록) ─────────────────────────────────── -->
 <div id="screen-auth" class="screen-wrap">
   <div class="auth-card">
     <div class="logo">
       <h1>🎓 EduTalk</h1>
-      <p>강사 로그인</p>
+      <p id="auth-subtitle">강사 로그인</p>
     </div>
-    <div class="form-group">
-      <label>비밀번호</label>
-      <input type="password" id="auth-password" placeholder="강사 비밀번호 입력" autofocus>
+
+    <!-- 로그인 폼 -->
+    <div id="login-form">
+      <div class="form-group">
+        <label>이메일</label>
+        <input type="email" id="login-email" placeholder="instructor@example.com" autofocus>
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="login-password" placeholder="비밀번호 입력">
+      </div>
+      <div id="auth-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+      <button class="btn btn-primary" id="login-btn">로그인</button>
+      <div class="mt-12 text-sm" style="text-align:center">
+        계정이 없나요? <a href="#" id="show-register">강사 등록하기</a>
+      </div>
     </div>
-    <div id="auth-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-    <button class="btn btn-primary" id="auth-btn">로그인</button>
+
+    <!-- 등록 폼 (최소 정보: 이름·이메일·비밀번호 → 관리자 승인 후 사용) -->
+    <div id="register-form" class="hidden">
+      <div class="form-group">
+        <label>이름</label>
+        <input type="text" id="reg-name" placeholder="홍길동" maxlength="30">
+      </div>
+      <div class="form-group">
+        <label>이메일</label>
+        <input type="email" id="reg-email" placeholder="instructor@example.com" maxlength="100">
+      </div>
+      <div class="form-group">
+        <label>비밀번호 (4자 이상)</label>
+        <input type="password" id="reg-password" placeholder="로그인에 사용할 비밀번호">
+      </div>
+      <div id="register-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
+      <div id="register-success" class="alert alert-success" style="display:none;">
+        <div class="alert-title">등록 완료</div>
+        관리자 승인 후 로그인할 수 있습니다.
+      </div>
+      <button class="btn btn-primary" id="register-btn">등록 신청</button>
+      <div class="mt-12 text-sm" style="text-align:center">
+        이미 계정이 있나요? <a href="#" id="show-login">로그인으로 돌아가기</a>
+      </div>
+    </div>
+
     <div class="mt-12 text-sm text-gray" style="text-align:center">
       <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
     </div>
