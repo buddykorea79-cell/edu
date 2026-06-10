@@ -15,7 +15,6 @@ git remote add origin https://github.com/<사용자명>/<저장소명>.git
 git push -u origin main
 ```
 
-> `config/instructor_password.txt`(강사 비밀번호)도 함께 커밋됩니다.
 > `node_modules/`, `uploads/`는 `.gitignore`로 제외됩니다.
 
 ## 2단계: Render에서 배포
@@ -61,11 +60,27 @@ git push -u origin main
 - **강사 등록**: `/instructor.html` 에서 이름·이메일·비밀번호(최소 정보)로
   등록 신청 → 관리자 승인 후 로그인하여 강의실을 열 수 있습니다.
 - **관리자 페이지**: `/admin.html` — 강사 등록 신청을 승인/거절/삭제합니다.
-  관리자 비밀번호는 `config/admin_password.txt` 에서 변경합니다
-  (파일이 없으면 `config/instructor_password.txt` 값을 대신 사용).
-- **계정 저장 위치**: `data/instructors.json` (git에 포함되지 않음).
-  ⚠ Render 무료 플랜은 디스크가 휘발성이라 **재배포/재시작 시 강사 계정이
-  초기화**됩니다. 계정을 영구 보관하려면 Render Disk를 `data/` 에 마운트하거나
-  외부 DB로 옮겨야 합니다.
+  관리자는 `ADMIN_EMAIL` 환경변수(기본값 `buddykorea79@gmail.com`)에 해당하는
+  강사 계정이며, 그 계정의 비밀번호로 로그인합니다 (승인 상태와 무관).
+  관리자 계정은 관리자 페이지에서 삭제할 수 없습니다.
+- **계정 저장 위치**: Supabase PostgreSQL `instructors` 테이블.
+  Render 환경변수에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 를 설정해야
+  영구 보관됩니다. 미설정 시 인메모리 모드로 동작하며 재시작 시 계정이
+  초기화됩니다 (로컬 개발용).
+
+  테이블 생성 SQL (Supabase SQL Editor 에서 1회 실행):
+
+  ```sql
+  CREATE TABLE IF NOT EXISTS instructors (
+    id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT    NOT NULL,
+    email       TEXT    UNIQUE NOT NULL,
+    salt        TEXT    NOT NULL,
+    pass_hash   TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'pending',
+    created_at  BIGINT  NOT NULL,
+    approved_at BIGINT
+  );
+  ```
 - **세션 토큰**: 로그인 토큰은 서버 메모리에만 있으므로 서버가 재시작되면
   강사는 다시 로그인해야 합니다.

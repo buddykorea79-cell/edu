@@ -16,15 +16,9 @@ const io = new Server(server);
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 
-function readConfigFile(name) {
-  try {
-    return fs.readFileSync(path.join(__dirname, 'config', name), 'utf8').trim();
-  } catch (e) {
-    return null;
-  }
-}
-// 관리자 비밀번호: config/admin_password.txt (없으면 기존 강사 비밀번호 파일로 대체)
-const ADMIN_PASSWORD = readConfigFile('admin_password.txt') || readConfigFile('instructor_password.txt');
+// 관리자 = Supabase instructors 테이블에 등록된 아래 이메일 계정.
+// 관리자 페이지 로그인 시 이 계정의 비밀번호로 인증한다 (승인 상태와 무관).
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'buddykorea79@gmail.com').toLowerCase();
 
 const MAX_ROOMS = 5;              // 동시에 개설 가능한 최대 방 개수
 const ROOM_CAPACITY = 50;         // 방당 최대 학생 수
@@ -262,16 +256,19 @@ app.post('/api/instructor/login', (req, res) => {
   res.json({ ok: true, token, name: acct.name, email: acct.email });
 });
 
-// ── 관리자: 로그인 ─────────────────────────────────────────────────────────────
+// ── 관리자: 로그인 — ADMIN_EMAIL 계정의 비밀번호로 인증 ──────────────────────
 app.post('/api/admin/auth', (req, res) => {
   const { password } = req.body || {};
-  if (ADMIN_PASSWORD && password === ADMIN_PASSWORD) {
-    const token = crypto.randomBytes(24).toString('hex');
-    adminTokens.add(token);
-    res.json({ ok: true, token });
-  } else {
-    res.status(401).json({ ok: false, error: '관리자 비밀번호가 틀렸습니다.' });
+  const acct = instructorAccounts.find(a => a.email === ADMIN_EMAIL);
+  if (!acct) {
+    return res.status(401).json({ ok: false, error: '관리자 계정이 등록되어 있지 않습니다. 강사 등록을 먼저 진행하세요.' });
   }
+  if (typeof password !== 'string' || acct.passHash !== hashPassword(password, acct.salt)) {
+    return res.status(401).json({ ok: false, error: '관리자 비밀번호가 틀렸습니다.' });
+  }
+  const token = crypto.randomBytes(24).toString('hex');
+  adminTokens.add(token);
+  res.json({ ok: true, token });
 });
 
 function requireAdmin(req, res, next) {
@@ -325,6 +322,9 @@ app.post('/api/admin/instructors/:id/status', requireAdmin, async (req, res) => 
 app.delete('/api/admin/instructors/:id', requireAdmin, async (req, res) => {
   const idx = instructorAccounts.findIndex(a => a.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
+  if (instructorAccounts[idx].email === ADMIN_EMAIL) {
+    return res.status(400).json({ ok: false, error: '관리자 계정은 삭제할 수 없습니다.' });
+  }
 
   if (supabase) {
     const { error } = await supabase.from('instructors').delete().eq('id', req.params.id);
