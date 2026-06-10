@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const server = http.createServer(app);
@@ -30,30 +31,51 @@ const ROOM_CAPACITY = 50;         // 방당 최대 학생 수
 const MAX_WHITEBOARD_SEGMENTS = 100000;  // 화이트보드 누적 세그먼트 상한 (메모리 보호)
 const MAX_MESSAGES = 500;         // 방별 채팅 보관 상한 (메모리 보호, 초과 시 오래된 것부터 삭제)
 
-// ── Instructor accounts (등록 → 관리자 승인 → 로그인) ─────────────────────────
-// data/instructors.json 에 영속화. Render 무료 플랜은 디스크가 휘발성이므로
-// 재배포/재시작 시 초기화됨 — 영구 보관이 필요하면 Render Disk 또는 외부 DB 필요.
-const DATA_DIR = path.join(__dirname, 'data');
-const INSTRUCTORS_FILE = path.join(DATA_DIR, 'instructors.json');
+// ── Supabase (강사 계정 영속화) ───────────────────────────────────────────────
+// 환경변수 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY 가 없으면 인메모리 전용으로 동작
+// (재시작 시 계정 초기화 — 로컬 개발용).
+//
+// Supabase 테이블 생성 SQL (프로젝트 SQL 에디터에서 한 번만 실행):
+//   CREATE TABLE IF NOT EXISTS instructors (
+//     id         UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+//     name       TEXT    NOT NULL,
+//     email      TEXT    UNIQUE NOT NULL,
+//     salt       TEXT    NOT NULL,
+//     pass_hash  TEXT    NOT NULL,
+//     status     TEXT    NOT NULL DEFAULT 'pending',
+//     created_at BIGINT  NOT NULL,
+//     approved_at BIGINT
+//   );
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = (SUPABASE_URL && SUPABASE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } })
+  : null;
 
+if (!supabase) {
+  console.warn('Supabase not configured — instructor accounts stored in-memory only (data lost on restart)');
+}
+
+// ── Instructor accounts (인메모리 캐시 + Supabase write-through) ─────────────
 let instructorAccounts = [];
-function loadInstructorAccounts() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(INSTRUCTORS_FILE, 'utf8'));
-    instructorAccounts = Array.isArray(raw.instructors) ? raw.instructors : [];
-  } catch (e) {
-    instructorAccounts = [];
-  }
+
+function dbToAccount(r) {
+  return {
+    id: r.id, name: r.name, email: r.email,
+    salt: r.salt, passHash: r.pass_hash,
+    status: r.status, createdAt: r.created_at, approvedAt: r.approved_at ?? null
+  };
 }
-function saveInstructorAccounts() {
-  try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(INSTRUCTORS_FILE, JSON.stringify({ instructors: instructorAccounts }, null, 2));
-  } catch (e) {
-    console.error('Failed to save instructors:', e.message);
-  }
+
+async function loadInstructorAccounts() {
+  if (!supabase) return;
+  const { data, error } = await supabase.from('instructors').select('*');
+  if (error) { console.error('Supabase load error:', error.message); return; }
+  instructorAccounts = (data || []).map(dbToAccount);
+  console.log(`Loaded ${instructorAccounts.length} instructor accounts from Supabase`);
 }
-loadInstructorAccounts();
+
+loadInstructorAccounts().catch(e => console.error('Supabase init error:', e.message));
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(String(password), salt, 32).toString('hex');
@@ -170,7 +192,7 @@ app.get('/api/deploy-info', (req, res) => {
 });
 
 // ── 강사 계정: 등록 (최소 정보 — 이름·이메일·비밀번호, 관리자 승인 후 사용) ────
-app.post('/api/instructor/register', (req, res) => {
+app.post('/api/instructor/register', async (req, res) => {
   const { name, email, password } = req.body || {};
   const cleanName = typeof name === 'string' ? name.trim().slice(0, 30) : '';
   const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase().slice(0, 100) : '';
@@ -187,17 +209,35 @@ app.post('/api/instructor/register', (req, res) => {
   }
 
   const salt = crypto.randomBytes(16).toString('hex');
-  instructorAccounts.push({
+  const newAccount = {
     id: uuidv4(),
     name: cleanName,
     email: cleanEmail,
     salt,
     passHash: hashPassword(password, salt),
-    status: 'pending',   // pending → approved | rejected (관리자가 변경)
+    status: 'pending',
     createdAt: Date.now(),
     approvedAt: null
-  });
-  saveInstructorAccounts();
+  };
+
+  if (supabase) {
+    const { error } = await supabase.from('instructors').insert({
+      id: newAccount.id,
+      name: newAccount.name,
+      email: newAccount.email,
+      salt: newAccount.salt,
+      pass_hash: newAccount.passHash,
+      status: newAccount.status,
+      created_at: newAccount.createdAt,
+      approved_at: newAccount.approvedAt
+    });
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ ok: false, error: '이미 등록된 이메일입니다.' });
+      console.error('Supabase register error:', error.message);
+      return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
+    }
+  }
+  instructorAccounts.push(newAccount);
   res.json({ ok: true, message: '등록이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.' });
 });
 
@@ -254,7 +294,7 @@ app.get('/api/admin/instructors', requireAdmin, (req, res) => {
 });
 
 // ── 관리자: 승인 / 거절 / 보류 ─────────────────────────────────────────────────
-app.post('/api/admin/instructors/:id/status', requireAdmin, (req, res) => {
+app.post('/api/admin/instructors/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body || {};
   if (!['approved', 'rejected', 'pending'].includes(status)) {
     return res.status(400).json({ ok: false, error: '잘못된 상태값입니다.' });
@@ -262,21 +302,39 @@ app.post('/api/admin/instructors/:id/status', requireAdmin, (req, res) => {
   const acct = instructorAccounts.find(a => a.id === req.params.id);
   if (!acct) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
 
+  const prevStatus = acct.status;
   acct.status = status;
   if (status === 'approved') acct.approvedAt = Date.now();
-  else revokeTokensFor(acct.email);   // 승인 취소/거절 시 기존 세션 즉시 무효화
+  else revokeTokensFor(acct.email);
 
-  saveInstructorAccounts();
+  if (supabase) {
+    const update = { status };
+    if (status === 'approved') update.approved_at = acct.approvedAt;
+    const { error } = await supabase.from('instructors').update(update).eq('id', acct.id);
+    if (error) {
+      // 롤백
+      acct.status = prevStatus;
+      console.error('Supabase status update error:', error.message);
+      return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
+    }
+  }
   res.json({ ok: true });
 });
 
 // ── 관리자: 계정 삭제 ──────────────────────────────────────────────────────────
-app.delete('/api/admin/instructors/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/instructors/:id', requireAdmin, async (req, res) => {
   const idx = instructorAccounts.findIndex(a => a.id === req.params.id);
   if (idx === -1) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
+
+  if (supabase) {
+    const { error } = await supabase.from('instructors').delete().eq('id', req.params.id);
+    if (error) {
+      console.error('Supabase delete error:', error.message);
+      return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
+    }
+  }
   const [removed] = instructorAccounts.splice(idx, 1);
   revokeTokensFor(removed.email);
-  saveInstructorAccounts();
   res.json({ ok: true });
 });
 
