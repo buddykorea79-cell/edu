@@ -313,11 +313,29 @@ label {
 .input-row .btn { flex-shrink: 0; width: auto; }
 
 /* ── Room layout ───────────────────────────────────────────────────────── */
+
+/* 방 화면일 때 body: 점 배경이 보이도록 flex 정렬 + 패딩 */
+body:has(.room-layout) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+  min-height: 100vh;
+}
+
 .room-layout {
   display: flex;
-  height: 100vh;
+  width: 100%;
+  max-width: 1360px;
+  height: calc(100vh - 32px);
   overflow: hidden;
   background: var(--color-bg-base);
+  /* 미니홈피 창 프레임 */
+  border-radius: var(--radius-xl);
+  border: 3px solid var(--color-border-subtle);
+  box-shadow:
+    0 20px 60px rgba(91,163,232,0.22),
+    0 4px 12px rgba(30,58,95,0.10);
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────── */
@@ -505,7 +523,19 @@ label {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-bg-base);
+  background: var(--color-bg-elevated);
+  /* 스티치 프레임: 내부 점선 액자 (pointer-events: none 으로 클릭 방해 안 함) */
+  position: relative;
+}
+.main-content::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 2px dashed var(--color-border-default);
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.55;
 }
 
 /* ── Tab bar ───────────────────────────────────────────────────────────── */
@@ -1510,6 +1540,14 @@ input[type="text"], input[type="password"], input[type="email"], input[type="url
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  body:has(.room-layout) { padding: 0; }
+  .room-layout {
+    max-width: 100%;
+    height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
+  .main-content::after { display: none; }  /* 모바일엔 스티치 숨김 */
   .mobile-header { display: flex; }
   .room-layout { flex-direction: column; }
   .sidebar {
