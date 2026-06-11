@@ -1,6 +1,6 @@
 /* ============================================================================
-   MINI-HOMPY PASTEL DESIGN SYSTEM — EduTalk
-   미니홈피 감성의 파스텔 핑크 테마 🌸
+   MINI-HOMPY SODA SKY DESIGN SYSTEM — EduTalk
+   미니홈피 감성의 하늘색 소다 테마 ☁️🥤
    ============================================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -8,42 +8,42 @@
 
 /* ── Design Tokens ─────────────────────────────────────────────────────── */
 :root {
-  --color-primary-900: #5A3A47;
-  --color-primary-700: #E05780;
-  --color-primary-600: #F06A92;
-  --color-primary-500: #FF8FAB;
-  --color-primary-400: #FFA8C0;
-  --color-primary-300: #FFC2D4;
-  --color-primary-100: #FFE5EE;
+  --color-primary-900: #1E3A5F;
+  --color-primary-700: #2E7BC4;
+  --color-primary-600: #3B8ED6;
+  --color-primary-500: #5BA3E8;
+  --color-primary-400: #85BFF0;
+  --color-primary-300: #B3D9F8;
+  --color-primary-100: #DFF0FF;
 
-  --color-bg-base:     #FFF0F5;
-  --color-bg-elevated: #FFF8FA;
+  --color-bg-base:     #EEF7FF;
+  --color-bg-elevated: #F5FBFF;
   --color-bg-card:     #FFFFFF;
-  --color-bg-hover:    #FFE5EE;
+  --color-bg-hover:    #DFF0FF;
 
-  --color-border-subtle:  #FFD6E3;
-  --color-border-default: #FFB8CE;
+  --color-border-subtle:  #C5E3FA;
+  --color-border-default: #96CCF5;
 
-  --color-text-primary:   #4A3B40;
-  --color-text-secondary: #7A5C68;
-  --color-text-tertiary:  #A38894;
-  --color-text-disabled:  #CDB8C0;
-  --color-text-on-dark:   #FFF5F8;
+  --color-text-primary:   #1A3048;
+  --color-text-secondary: #3A5A78;
+  --color-text-tertiary:  #6B8FAD;
+  --color-text-disabled:  #AACCDD;
+  --color-text-on-dark:   #F0F8FF;
 
-  --color-success:     #4CAF80;
-  --color-success-bg:  #E2F6EB;
-  --color-warning:     #E8A33D;
-  --color-warning-bg:  #FFF3DC;
-  --color-error:       #F26D6D;
-  --color-error-bg:    #FFE3E3;
-  --color-info:        #5B9BD5;
-  --color-info-bg:     #E3F0FA;
+  --color-success:     #3DBD7D;
+  --color-success-bg:  #DFFAED;
+  --color-warning:     #F0A830;
+  --color-warning-bg:  #FFF5DC;
+  --color-error:       #F06070;
+  --color-error-bg:    #FFE3E6;
+  --color-info:        #5BA3E8;
+  --color-info-bg:     #DFF0FF;
 
-  --color-overlay: rgba(90,58,71,0.45);
-  --shadow-sm: 0 2px 4px rgba(255,143,171,0.18), 0 1px 2px rgba(90,58,71,0.06);
-  --shadow-md: 0 4px 10px rgba(255,143,171,0.22), 0 2px 4px rgba(90,58,71,0.06);
-  --shadow-lg: 0 10px 24px rgba(255,143,171,0.28), 0 4px 8px rgba(90,58,71,0.08);
-  --shadow-focus: 0 0 0 3px rgba(255,143,171,0.35);
+  --color-overlay: rgba(30,58,95,0.45);
+  --shadow-sm: 0 2px 4px rgba(91,163,232,0.18), 0 1px 2px rgba(30,58,95,0.06);
+  --shadow-md: 0 4px 10px rgba(91,163,232,0.22), 0 2px 4px rgba(30,58,95,0.06);
+  --shadow-lg: 0 10px 24px rgba(91,163,232,0.28), 0 4px 8px rgba(30,58,95,0.08);
+  --shadow-focus: 0 0 0 3px rgba(91,163,232,0.35);
 
   --font-display: 'Jua','Pretendard Variable','Pretendard',-apple-system,sans-serif;
   --font-body:    'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -1394,15 +1394,15 @@ label {
 
 .admin-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
-/* ── 미니홈피 귀여운 디테일 ✿ ─────────────────────────────────────────── */
+/* ── 미니홈피 귀여운 디테일 ☁️ ─────────────────────────────────────────── */
 
-/* 카드: 도트 액자 테두리 + 폭신한 그림자 */
+/* 카드: 물결 점선 액자 테두리 + 폭신한 그림자 */
 .auth-card, .admin-card, .modal {
   border: 3px dashed var(--color-border-default);
   box-shadow: var(--shadow-lg);
 }
 .auth-card::before {
-  content: '⸝⸝ ᰔ ⸝⸝';
+  content: '˚₊· ͟͟͞͞➳❥ ·₊˚';
   display: block;
   text-align: center;
   color: var(--color-primary-400);
@@ -1422,7 +1422,7 @@ label {
 .btn:hover { transform: translateY(-2px) scale(1.02); }
 .btn:active { transform: translateY(0) scale(0.98); }
 .btn-primary {
-  background-image: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  background-image: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700));
   border: none;
 }
 
@@ -1442,12 +1442,12 @@ label {
   border-color: var(--color-primary-400);
   box-shadow: var(--shadow-lg);
 }
-.landing-card-icon { filter: drop-shadow(0 3px 6px rgba(255,143,171,0.4)); }
+.landing-card-icon { filter: drop-shadow(0 3px 6px rgba(91,163,232,0.45)); }
 
-/* 채팅 말풍선: 둥글둥글 + 내 말풍선은 핑크 그라데이션 */
+/* 채팅 말풍선: 둥글둥글 + 내 말풍선은 하늘 그라데이션 */
 .msg-bubble { border-radius: var(--radius-lg); }
 .msg-me .msg-bubble {
-  background-image: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
+  background-image: linear-gradient(135deg, var(--color-primary-400), var(--color-primary-600));
   border-bottom-right-radius: var(--radius-sm);
 }
 .msg-other .msg-bubble {
@@ -1464,9 +1464,9 @@ label {
 .tab-btn { font-family: var(--font-display); }
 .tab-btn.active { border-bottom-width: 3px; }
 
-/* 사이드바: 딸기우유 빛 그라데이션 */
+/* 사이드바: 맑은 하늘빛 그라데이션 */
 .sidebar {
-  background-image: linear-gradient(180deg, #6B4456 0%, var(--color-primary-900) 100%);
+  background-image: linear-gradient(180deg, #1A3A6A 0%, var(--color-primary-900) 100%);
 }
 .room-info-box { border: 2px dashed rgba(255,255,255,0.25); }
 
@@ -1476,7 +1476,7 @@ label {
   border-radius: var(--radius-lg);
 }
 .bar-fill {
-  background-image: linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600));
+  background-image: linear-gradient(90deg, var(--color-primary-300), var(--color-primary-600));
   border-radius: var(--radius-full);
 }
 
@@ -1491,14 +1491,14 @@ label {
   font-family: var(--font-display);
 }
 
-/* 입력창: 포커스 시 핑크 링 */
+/* 입력창: 포커스 시 하늘 링 */
 input[type="text"], input[type="password"], input[type="email"], input[type="url"], textarea, select {
   border-radius: var(--radius-md);
 }
 
 /* 이모지 장식 — 랜딩 태그라인 */
 .landing-tagline::after {
-  content: ' ♡';
+  content: ' ☁️';
   color: var(--color-primary-500);
 }
 
