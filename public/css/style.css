@@ -365,23 +365,29 @@ label {
 .room-code-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-1);
 }
 .room-code-label {
+  flex-basis: 100%;
   font-size: var(--text-xs);
   color: var(--color-primary-300);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 600;
 }
+/* 방 코드: 학생들에게 불러주기 쉽도록 큼직하게 표시 */
 .room-code-value {
   font-family: var(--font-mono);
-  font-size: var(--text-base);
+  font-size: var(--text-3xl);
+  letter-spacing: 0.12em;
+  line-height: 1.1;
   color: var(--color-text-on-dark);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   flex: 1;
+  text-shadow: 0 2px 8px rgba(91,163,232,0.5);
 }
 .room-code-value:hover { color: var(--color-primary-300); }
 .copy-btn {
