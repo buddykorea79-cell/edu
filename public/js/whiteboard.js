@@ -14,7 +14,7 @@
      Whiteboard.show();        // 화이트보드 탭이 보일 때 호출 (리사이즈)
    ============================================================================ */
 window.Whiteboard = (function () {
-  const COLORS = ['#1A2E24', '#C44545', '#3A6F8F', '#2D7A4F', '#B8862C', '#7B4FA8', '#E07A2F'];
+  const COLORS = ['#4A3B40', '#FF6B9D', '#5B9BD5', '#4CAF80', '#E8A33D', '#9B6FC8', '#FF8A5C'];
 
   let socket = null;
   let canvas, ctx, wrap;
