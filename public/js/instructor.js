@@ -178,7 +178,6 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     $('setup-lecture-group').classList.toggle('hidden', isAssistant);
     $('setup-assistant-name-group').classList.toggle('hidden', !isAssistant);
     $('setup-subtitle').textContent = isAssistant ? '조교로 참여하기' : '강의실 만들기';
-    $('setup-password-label').textContent = isAssistant ? '방 비밀번호 (필요시)' : '방 비밀번호 (선택)';
     $('setup-btn').textContent = isAssistant ? '조교로 입장' : '강의실 열기';
   });
 });
@@ -191,11 +190,9 @@ $('setup-btn').addEventListener('click', doSetup);
 $('setup-lecture').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 $('setup-assistant-name').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 $('setup-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
-$('setup-password').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 
 async function doSetup() {
   const code = $('setup-room-code').value.trim();
-  const password = $('setup-password').value;
   if (!/^\d{6}$/.test(code)) { showError('setup-error', '6자리 숫자 방 코드를 입력하세요.'); return; }
 
   const token = await currentToken();
@@ -211,14 +208,14 @@ async function doSetup() {
     if (!aName) { showError('setup-error', '조교 이름을 입력하세요.'); return; }
     roomCode = code;
     myRole = 'assistant';
-    socket.emit('instructor:join', { roomCode, asAssistant: true, name: aName, password, token });
+    socket.emit('instructor:join', { roomCode, asAssistant: true, name: aName, token });
   } else {
     const name = $('setup-lecture').value.trim();
     if (!name) { showError('setup-error', '강의 이름을 입력하세요.'); return; }
     lectureName = name;
     roomCode = code;
     myRole = 'instructor';
-    socket.emit('instructor:join', { roomCode, lectureName, password, token });
+    socket.emit('instructor:join', { roomCode, lectureName, token });
   }
 }
 

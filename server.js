@@ -103,7 +103,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 // ── In-memory state ───────────────────────────────────────────────────────────
-// rooms: { [roomCode]: { lectureName, password, capacity, instructorSocketId,
+// rooms: { [roomCode]: { lectureName, capacity, instructorSocketId,
 //   students: Map<socketId,{name,emoji}>, assistants: Map<socketId,{name}>,
 //   messages:[], surveys:[], activeSurvey, resources:[], surveyResponses: Map,
 //   whiteboard: [] } }
@@ -111,10 +111,9 @@ const rooms = new Map();
 
 function getRoom(code) { return rooms.get(code); }
 
-function createRoom(code, lectureName, instructorSocketId, options = {}) {
+function createRoom(code, lectureName, instructorSocketId) {
   rooms.set(code, {
     lectureName,
-    password: options.password || null,
     capacity: ROOM_CAPACITY,
     instructorSocketId,
     students: new Map(),
@@ -318,14 +317,13 @@ app.delete('/api/admin/instructors/:id', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// 방 정보 조회 (URL 코드 접근 / 입장 전 비밀번호·정원 안내용)
+// 방 정보 조회 (URL 코드 접근 / 입장 전 정원 안내용)
 app.get('/api/room/:code', (req, res) => {
   const room = getRoom(req.params.code);
   if (!room) return res.json({ exists: false });
   res.json({
     exists: true,
     lectureName: room.lectureName,
-    requiresPassword: !!room.password,
     count: room.students.size,
     capacity: room.capacity,
     full: room.students.size >= room.capacity
@@ -436,7 +434,7 @@ io.on('connection', socket => {
   // ── Instructor join ────────────────────────────────────────────────────────
   socket.on('instructor:join', async (payload) => {
     if (!payload || typeof payload !== 'object') return;
-    const { roomCode, lectureName, password, asAssistant, name, token } = payload;
+    const { roomCode, lectureName, asAssistant, name, token } = payload;
 
     // Supabase access token 검증 + 승인된 프로필 확인 (강사·조교 공통)
     const user = await getAuthUser(token);
@@ -460,10 +458,6 @@ io.on('connection', socket => {
         socket.emit('app:error', { message: '존재하지 않는 방입니다. 방 코드를 확인하세요.' });
         return;
       }
-      if (room.password && room.password !== (password || '')) {
-        socket.emit('app:error', { message: '방 비밀번호가 일치하지 않습니다.' });
-        return;
-      }
       const assistantName = (typeof name === 'string' && name.trim()) ? name.trim().slice(0, 20) : acct.name;
       room.assistants.set(socket.id, { name: assistantName, email: acct.email });
       role = 'assistant';
@@ -478,7 +472,7 @@ io.on('connection', socket => {
           socket.emit('app:error', { message: `동시 개설 가능한 방이 최대 ${MAX_ROOMS}개입니다. 잠시 후 다시 시도하세요.` });
           return;
         }
-        room = createRoom(roomCode, lectureName, socket.id, { password });
+        room = createRoom(roomCode, lectureName, socket.id);
         room.ownerEmail = acct.email;
       } else {
         // 다른 강사가 만든 방의 코드를 알아내 소유권을 가로채는 것 방지
@@ -500,7 +494,6 @@ io.on('connection', socket => {
       lectureName: room.lectureName,
       role,
       capacity: room.capacity,
-      hasPassword: !!room.password,
       students: Array.from(room.students.entries()).map(([id, s]) => ({ socketId: id, name: s.name, emoji: s.emoji })),
       assistants: Array.from(room.assistants.entries()).map(([id, a]) => ({ socketId: id, name: a.name })),
       messages: room.messages,
@@ -517,7 +510,7 @@ io.on('connection', socket => {
   // ── Student join ───────────────────────────────────────────────────────────
   socket.on('student:join', (payload) => {
     if (!payload || typeof payload !== 'object') return;
-    const { roomCode, password } = payload;
+    const { roomCode } = payload;
 
     // 입력 정규화: 이름·이모지 길이 제한
     const name = typeof payload.name === 'string' ? payload.name.trim().slice(0, 20) : '';
@@ -530,12 +523,6 @@ io.on('connection', socket => {
     const room = getRoom(roomCode);
     if (!room) {
       socket.emit('app:error', { message: '존재하지 않는 방입니다.' });
-      return;
-    }
-
-    // 비밀번호 검증
-    if (room.password && room.password !== (password || '')) {
-      socket.emit('app:error', { message: '방 비밀번호가 일치하지 않습니다.', code: 'PASSWORD' });
       return;
     }
 

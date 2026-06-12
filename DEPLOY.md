@@ -57,30 +57,29 @@ git push -u origin main
 
 ## 강사 계정 / 관리자 페이지
 
-- **강사 등록**: `/instructor.html` 에서 이름·이메일·비밀번호(최소 정보)로
-  등록 신청 → 관리자 승인 후 로그인하여 강의실을 열 수 있습니다.
+- **강사 로그인**: `/instructor.html` 에서 **Google 계정으로 로그인**합니다.
+  첫 로그인 시 자동으로 등록 신청(pending)되며, 관리자 승인 후 강의실을
+  열 수 있습니다.
 - **관리자 페이지**: `/admin.html` — 강사 등록 신청을 승인/거절/삭제합니다.
-  관리자는 `ADMIN_EMAIL` 환경변수(기본값 `buddykorea79@gmail.com`)에 해당하는
-  강사 계정이며, 그 계정의 비밀번호로 로그인합니다 (승인 상태와 무관).
+  관리자는 `ADMIN_EMAIL` 환경변수(기본값 `buddykorea79@gmail.com`)의 Google
+  계정으로만 접근하며, 첫 로그인 시 자동 승인됩니다.
   관리자 계정은 관리자 페이지에서 삭제할 수 없습니다.
-- **계정 저장 위치**: Supabase PostgreSQL `instructors` 테이블.
-  Render 환경변수에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 를 설정해야
-  영구 보관됩니다. 미설정 시 인메모리 모드로 동작하며 재시작 시 계정이
-  초기화됩니다 (로컬 개발용).
+- **방 입장**: 학생은 6자리 방 코드만으로 입장합니다 (방 비밀번호 없음).
+- **필요 환경변수**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `SUPABASE_ANON_KEY`. Supabase 대시보드에서 Google OAuth Provider 활성화 및
+  Redirect URL(`/instructor.html`, `/admin.html`) 등록이 필요합니다.
 
-  테이블 생성 SQL (Supabase SQL Editor 에서 1회 실행):
+  프로필 테이블 생성 SQL (Supabase SQL Editor 에서 1회 실행):
 
   ```sql
-  CREATE TABLE IF NOT EXISTS instructors (
-    id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        TEXT    NOT NULL,
+  CREATE TABLE IF NOT EXISTS instructor_profiles (
+    user_id     UUID    PRIMARY KEY,
     email       TEXT    UNIQUE NOT NULL,
-    salt        TEXT    NOT NULL,
-    pass_hash   TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
     status      TEXT    NOT NULL DEFAULT 'pending',
     created_at  BIGINT  NOT NULL,
     approved_at BIGINT
   );
   ```
-- **세션 토큰**: 로그인 토큰은 서버 메모리에만 있으므로 서버가 재시작되면
-  강사는 다시 로그인해야 합니다.
+- **세션**: 강사 인증은 Supabase JWT 라 서버가 재시작돼도 유지됩니다.
+  관리자 페이지 세션 토큰만 서버 메모리에 있어 재시작 시 재로그인이 필요합니다.

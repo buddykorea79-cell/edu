@@ -97,7 +97,6 @@ function showScreen(id) {
 $('join-btn').addEventListener('click', doJoin);
 $('join-name').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 $('join-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
-$('join-password').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
 
 // URL ?code=123456 로 접근 시 방 코드 자동 입력 + 방 정보 미리 조회
 (function prefillFromUrl() {
@@ -110,7 +109,7 @@ $('join-password').addEventListener('keydown', e => { if (e.key === 'Enter') doJ
   }
 })();
 
-// 방 코드 입력이 끝나면 방 정보(강의명/비밀번호 필요 여부/정원) 조회
+// 방 코드 입력이 끝나면 방 정보(강의명/정원) 조회
 $('join-room-code').addEventListener('change', () => {
   const code = $('join-room-code').value.trim();
   if (/^\d{6}$/.test(code)) fetchRoomInfo(code);
@@ -125,14 +124,12 @@ async function fetchRoomInfo(code) {
       infoEl.style.display = 'block';
       infoEl.style.color = 'var(--color-error)';
       infoEl.textContent = '존재하지 않는 방입니다.';
-      $('join-password-group').classList.add('hidden');
       return;
     }
     infoEl.style.display = 'block';
     infoEl.style.color = 'var(--color-text-tertiary)';
     const fullTxt = data.full ? ' · 정원 마감' : ` · ${data.count}/${data.capacity}명`;
     infoEl.textContent = `📚 ${data.lectureName}${fullTxt}`;
-    $('join-password-group').classList.toggle('hidden', !data.requiresPassword);
   } catch (e) {
     infoEl.style.display = 'none';
   }
@@ -141,7 +138,6 @@ async function fetchRoomInfo(code) {
 function doJoin() {
   const name = $('join-name').value.trim();
   const code = $('join-room-code').value.trim();
-  const password = $('join-password').value;
   if (!name) { showJoinError('닉네임을 입력하세요.'); return; }
   if (!/^\d{6}$/.test(code)) { showJoinError('6자리 숫자 방 코드를 입력하세요.'); return; }
 
@@ -149,7 +145,7 @@ function doJoin() {
   myEmoji = selectedEmoji;
   roomCode = code;
 
-  socket.emit('student:join', { roomCode, name: myName, emoji: myEmoji, password });
+  socket.emit('student:join', { roomCode, name: myName, emoji: myEmoji });
 }
 
 function showJoinError(msg) {
@@ -235,13 +231,8 @@ function updateExpiryDisplay() {
   el.textContent = `방 유지: 오늘 자정까지 (${h}시간 ${m}분 남음)`;
 }
 
-socket.on('app:error', ({ message, code }) => {
+socket.on('app:error', ({ message }) => {
   showJoinError(message);
-  // 비밀번호가 필요한 방이면 비밀번호 입력란을 노출
-  if (code === 'PASSWORD') {
-    $('join-password-group').classList.remove('hidden');
-    $('join-password').focus();
-  }
 });
 
 // ── Tab switching ──────────────────────────────────────────────────────────
