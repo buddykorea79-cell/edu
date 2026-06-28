@@ -558,7 +558,8 @@ function appendAiMsg(role, text) {
   } else if (role === 'user') {
     div.innerHTML = `<div class="ai-msg-role">나</div><div class="ai-bubble">${esc(text)}</div>`;
   } else if (role === 'assistant') {
-    div.innerHTML = `<div class="ai-msg-role">AI</div><div class="ai-bubble">${esc(text)}</div>`;
+    const body = window.renderMarkdown ? window.renderMarkdown(text) : esc(text);
+    div.innerHTML = `<div class="ai-msg-role">AI</div><div class="ai-bubble md-body">${body}</div>`;
   } else if (role === 'error') {
     div.innerHTML = `<div class="ai-bubble">⚠ ${esc(text)}</div>`;
   }
