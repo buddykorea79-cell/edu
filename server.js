@@ -338,17 +338,23 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   });
 });
 
+// ── AI 라우터(BizRouter) 설정 — OpenAI 호환 API ──────────────────────────────
+// 엔드포인트가 다르면 아래 두 상수만 바꾸면 됨.
+const AI_ROUTER_HOST = process.env.AI_ROUTER_HOST || 'bizrouter.ai';
+const AI_ROUTER_PATH = process.env.AI_ROUTER_PATH || '/api/v1/chat/completions';
+const AI_DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+
 app.post('/api/ai/chat', (req, res) => {
   const { messages, model, apiKey } = req.body;
   if (!apiKey) return res.status(400).json({ error: 'API 키가 필요합니다.' });
   if (!messages || !messages.length) return res.status(400).json({ error: '메시지가 필요합니다.' });
 
-  const modelId = model || 'openai/gpt-3.5-turbo';
+  const modelId = model || AI_DEFAULT_MODEL;
   const body = JSON.stringify({ model: modelId, messages });
 
   const options = {
-    hostname: 'openrouter.ai',
-    path: '/api/v1/chat/completions',
+    hostname: AI_ROUTER_HOST,
+    path: AI_ROUTER_PATH,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
