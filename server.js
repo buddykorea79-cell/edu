@@ -342,7 +342,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 // 엔드포인트가 다르면 아래 두 상수만 바꾸면 됨.
 const AI_ROUTER_HOST = process.env.AI_ROUTER_HOST || 'bizrouter.ai';
 const AI_ROUTER_PATH = process.env.AI_ROUTER_PATH || '/api/v1/chat/completions';
-const AI_DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+const AI_DEFAULT_MODEL = 'qwen/qwen3-coder';
 
 app.post('/api/ai/chat', (req, res) => {
   const { messages, model, apiKey } = req.body;
