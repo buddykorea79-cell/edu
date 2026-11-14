@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d766e">
   <title>EduTalk - 학생</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -10,10 +11,12 @@
 
 <!-- ── Screen: Join ──────────────────────────────────────────────────────── -->
 <div id="screen-join" class="screen-wrap">
-  <div class="auth-card" style="max-width:480px">
+  <div class="auth-card">
+    <a href="/" class="auth-brand" aria-label="EduTalk 홈"><span class="brand-mark" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h6A2 2 0 0 1 12 8v12a4 4 0 0 0-4-2H4z"/><path d="M12 8a2 2 0 0 1 2-2.5h6V18h-4a4 4 0 0 0-4 2"/></svg></span><span>EduTalk</span></a>
     <div class="logo">
-      <h1>🎓 EduTalk</h1>
-      <p>강의실 입장</p>
+      <p class="eyebrow">STUDENT SPACE</p>
+      <h1>함께 배울 준비 되셨나요?</h1>
+      <p>나를 표현할 아바타를 고르고,<br>강사님이 공유한 방 코드로 참여하세요.</p>
     </div>
 
     <div class="form-group">
@@ -22,13 +25,13 @@
     </div>
 
     <div class="form-group">
-      <label>닉네임</label>
+      <label for="join-name">닉네임</label>
       <input type="text" id="join-name" placeholder="이름 또는 별명 입력" maxlength="20">
     </div>
 
     <div class="form-group">
-      <label>방 코드</label>
-      <input type="text" id="join-room-code" placeholder="6자리 방 코드" maxlength="6" pattern="[0-9]{6}">
+      <label for="join-room-code">방 코드</label>
+      <input type="text" inputmode="numeric" autocomplete="off" id="join-room-code" placeholder="6자리 방 코드" maxlength="6" pattern="[0-9]{6}">
       <div id="join-room-info" class="text-xs" style="margin-top:6px;display:none;"></div>
     </div>
 
@@ -46,17 +49,19 @@
 
   <!-- Mobile header -->
   <div class="mobile-header">
-    <button class="menu-btn" id="mobile-menu-btn">☰</button>
+    <button class="menu-btn" id="mobile-menu-btn" aria-label="강의실 메뉴 열기"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <span class="mobile-title">EduTalk</span>
+    <span class="mobile-connection-status" id="mobile-connection-status" role="status" aria-live="polite">연결 확인 중</span>
   </div>
 
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-brand">
-        <span class="brand-name">🎓 EduTalk</span>
+        <a href="/" class="brand-name" aria-label="EduTalk 홈"><span class="brand-mark" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h6A2 2 0 0 1 12 8v12a4 4 0 0 0-4-2H4z"/><path d="M12 8a2 2 0 0 1 2-2.5h6V18h-4a4 4 0 0 0-4 2"/></svg></span><span>EduTalk</span></a>
         <span class="conn-dot" id="conn-dot"></span>
       </div>
+      <div id="connection-status" class="connection-status" role="status" aria-live="polite">연결 중</div>
       <div class="room-info-box">
         <div class="room-code-row">
           <span class="room-code-label">방 코드</span>
@@ -95,18 +100,22 @@
     </div>
 
     <div class="sidebar-footer">
-      <button class="exit-btn" id="exit-btn">🚪 강의실 나가기</button>
+      <button class="exit-btn" id="exit-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5V3H3v18h6v-2M8 12h13m-4-4 4 4-4 4"/></svg>강의실 나가기</button>
     </div>
   </aside>
 
   <!-- Main -->
   <div class="main-content">
+    <header class="workspace-header">
+      <div><p class="eyebrow">OUR LEARNING SPACE</p><h1>함께 나누는 배움</h1></div>
+      <span class="workspace-pill"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h6A2 2 0 0 1 12 8v12a4 4 0 0 0-4-2H4z"/><path d="M12 8a2 2 0 0 1 2-2.5h6V18h-4a4 4 0 0 0-4 2"/></svg>학생 공간</span>
+    </header>
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="chat">💬 채팅</button>
-      <button class="tab-btn" data-tab="whiteboard">🎨 화이트보드</button>
-      <button class="tab-btn" data-tab="survey">📊 설문</button>
-      <button class="tab-btn" data-tab="resources">📚 교육자료</button>
-      <button class="tab-btn" data-tab="ai">🤖 AI</button>
+      <button class="tab-btn active" data-tab="chat"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/><path d="M7 9h8M7 13h5"/></svg>채팅</button>
+      <button class="tab-btn" data-tab="whiteboard"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M12 17v4M8 21h8m-8-9 2.5-4 3 5 2.5-3"/></svg>화이트보드</button>
+      <button class="tab-btn" data-tab="survey"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg>설문</button>
+      <button class="tab-btn" data-tab="resources"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>교육자료</button>
+      <button class="tab-btn" data-tab="ai"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg>AI</button>
     </div>
 
     <div class="tab-content">
@@ -115,10 +124,11 @@
         <div class="chat-feed" id="chat-feed"></div>
         <div class="chat-input-area">
           <input type="file" id="file-input" style="display:none" accept="*/*">
-          <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부">📎</button>
-          <input type="text" class="chat-input" id="chat-input" placeholder="메시지 입력...">
-          <button class="chat-send-btn" id="chat-send-btn" title="전송">➤</button>
+          <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부" aria-label="파일 첨부"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 12 6-6a4 4 0 0 1 6 6l-8 8a6 6 0 0 1-8-8l8-8a2 2 0 0 1 3 3l-8 8a1 1 0 0 1-2-2l7-7"/></svg></button>
+          <input type="text" class="chat-input" aria-label="채팅 메시지" id="chat-input" maxlength="2000" placeholder="메시지 입력...">
+          <button class="chat-send-btn" id="chat-send-btn" title="전송" aria-label="메시지 전송"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 11 16-7-7 16-2-7-7-2Z"/><path d="m11 13 9-9"/></svg></button>
         </div>
+        <p class="composer-hint">Enter 키로 메시지를 전송할 수 있어요</p>
       </div>
 
       <!-- Whiteboard -->
@@ -130,11 +140,11 @@
               굵기
               <input type="range" id="wb-size" min="1" max="24" value="3">
             </label>
-            <button class="btn btn-sm btn-secondary" id="wb-eraser-btn" style="width:auto">🧽 지우개</button>
+            <button class="btn btn-sm btn-secondary" id="wb-eraser-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 14 10-10 8 8-9 9H9l-6-7Z"/><path d="m8 9 8 8M12 21h9"/></svg>지우개</button>
             <input type="file" id="wb-image-input" accept="image/*" style="display:none">
-            <button class="btn btn-sm btn-secondary" id="wb-image-btn" style="width:auto">🖼 이미지</button>
-            <button class="btn btn-sm btn-secondary" id="wb-capture-btn" style="width:auto">📷 화면캡처</button>
-            <button class="btn btn-sm btn-danger hidden" id="wb-clear-btn" style="width:auto">🗑 전체 지우기</button>
+            <button class="btn btn-sm btn-secondary" id="wb-image-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>이미지</button>
+            <button class="btn btn-sm btn-secondary" id="wb-capture-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="4"/><path d="M8 5V3h8v2"/></svg>화면캡처</button>
+            <button class="btn btn-sm btn-danger hidden" id="wb-clear-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>전체 지우기</button>
           </div>
           <div class="whiteboard-canvas-wrap" id="wb-wrap">
             <canvas id="wb-canvas"></canvas>
@@ -146,7 +156,7 @@
       <div class="tab-pane" data-pane="survey">
         <div class="surveys-pane" id="survey-feed">
           <div class="empty-state" id="survey-empty">
-            <div class="empty-icon">📊</div>
+            <div class="empty-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg></div>
             <p>진행 중인 설문이 없습니다</p>
           </div>
           <div id="active-survey-card" style="display:none"></div>
@@ -157,7 +167,7 @@
       <div class="tab-pane" data-pane="resources">
         <div class="student-resources-pane" id="student-resources-pane">
           <div class="empty-state" id="resources-empty">
-            <div class="empty-icon">📚</div>
+            <div class="empty-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div>
             <p>공유된 교육자료가 없습니다<br>강사가 자료를 공유하면 여기에 표시됩니다</p>
           </div>
         </div>
@@ -167,8 +177,8 @@
       <div class="tab-pane" data-pane="ai">
         <div class="ai-pane">
           <div class="ai-settings">
-            <input type="password" class="ai-key-input" id="ai-api-key" placeholder="BizRouter API 키 입력">
-            <select class="ai-model-select" id="ai-model">
+            <input type="password" class="ai-key-input" aria-label="BizRouter API 키" id="ai-api-key" placeholder="BizRouter API 키 입력">
+            <select class="ai-model-select" aria-label="AI 모델" id="ai-model">
               <option value="qwen/qwen3-coder">Qwen3 Coder</option>
               <option value="qwen/qwen3.5-397b-a17b">Qwen3.5 397B</option>
               <option value="minimax/minimax-m3">MiniMax M3</option>
@@ -176,8 +186,8 @@
           </div>
           <div class="ai-feed" id="ai-feed"></div>
           <div class="ai-input-area">
-            <textarea class="ai-input" id="ai-input" placeholder="AI에게 질문하세요..." rows="1"></textarea>
-            <button class="chat-send-btn" id="ai-send-btn" title="전송">➤</button>
+            <textarea class="ai-input" aria-label="AI에게 질문" id="ai-input" placeholder="AI에게 질문하세요..." rows="1"></textarea>
+            <button class="chat-send-btn" id="ai-send-btn" title="전송" aria-label="메시지 전송"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 11 16-7-7 16-2-7-7-2Z"/><path d="m11 13 9-9"/></svg></button>
           </div>
         </div>
       </div>
@@ -188,7 +198,7 @@
 <!-- ── Modal: Survey Results ─────────────────────────────────────────────── -->
 <div class="modal-overlay" id="results-modal" style="display:none">
   <div class="modal">
-    <div class="modal-title">📊 설문 결과</div>
+    <div class="modal-title">설문 결과</div>
     <div id="results-question" class="fw-600 mt-8" style="margin-bottom:16px"></div>
     <div id="results-bars"></div>
     <div class="modal-actions">
@@ -198,6 +208,7 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/js/connection.js"></script>
 <script src="/js/whiteboard.js"></script>
 <script src="/js/markdown.js"></script>
 <script src="/js/student.js"></script>

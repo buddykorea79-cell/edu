@@ -49,17 +49,19 @@ EMOJIS.forEach((emoji, i) => {
 });
 
 // ── Socket ─────────────────────────────────────────────────────────────────
-const socket = io();
+const socket = io({ reconnectionDelay: 1000, reconnectionDelayMax: 10000, timeout: 20000 });
 let mySocketId = '';
-socket.on('connect', () => {
-  mySocketId = socket.id;
-  const dot = $('conn-dot');
-  if (dot) dot.classList.add('connected');
+const connection = new EduTalkConnection(socket, {
+  joinEvent: 'student:join',
+  onNotice: showToast,
+  onError: error => {
+    if (['NOT_FOUND', 'ROOM_NOT_FOUND', 'FULL', 'REPLACED'].includes(error.code)) showScreen('screen-join');
+    showJoinError(error.message || error.error);
+    showToast(error.message || error.error);
+  }
 });
-socket.on('disconnect', () => {
-  const dot = $('conn-dot');
-  if (dot) dot.classList.remove('connected');
-});
+window.EduTalkSession = connection;
+socket.on('connect', () => { mySocketId = socket.id; });
 
 // ── State ──────────────────────────────────────────────────────────────────
 let myName = '';
@@ -69,21 +71,7 @@ let activeSurvey = null;
 let myResponses = {};
 let sharedResources = [];
 let expiryIntervalId = null;
-let keepAliveId = null;
 let wbStarted = false;
-
-const KEEP_ALIVE_MS = 10 * 60 * 1000; // 10분 — Render 슬립(15분) 이전에 트래픽 발생
-
-function startKeepAlive() {
-  if (keepAliveId) return;
-  keepAliveId = setInterval(() => {
-    fetch('/api/ping').catch(() => {});
-  }, KEEP_ALIVE_MS);
-}
-
-function stopKeepAlive() {
-  if (keepAliveId) { clearInterval(keepAliveId); keepAliveId = null; }
-}
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
@@ -118,8 +106,8 @@ $('join-room-code').addEventListener('change', () => {
 async function fetchRoomInfo(code) {
   const infoEl = $('join-room-info');
   try {
-    const res = await fetch(`/api/room/${code}`);
-    const data = await res.json();
+    const data = await eduRequestJson(`/api/room/${code}`, {}, 15000);
+    if ($('join-room-code').value.trim() !== code) return;
     if (!data.exists) {
       infoEl.style.display = 'block';
       infoEl.style.color = 'var(--color-error)';
@@ -145,7 +133,7 @@ function doJoin() {
   myEmoji = selectedEmoji;
   roomCode = code;
 
-  socket.emit('student:join', { roomCode, name: myName, emoji: myEmoji });
+  connection.join({ roomCode, name: myName, emoji: myEmoji });
 }
 
 function showJoinError(msg) {
@@ -157,6 +145,7 @@ function showJoinError(msg) {
 
 // ── Socket: student joined ─────────────────────────────────────────────────
 socket.on('student:joined', data => {
+  connection.acceptSnapshot(data);
   roomCode = data.roomCode;
   $('sb-room-code').textContent = roomCode;
   $('sb-lecture-name').textContent = data.lectureName;
@@ -167,23 +156,21 @@ socket.on('student:joined', data => {
 
   const feed = $('chat-feed');
   feed.innerHTML = '';
-  (data.messages || []).forEach(m => renderMsg(feed, m));
+  renderedMessages.clear();
+  (data.messages || []).forEach(m => renderMsg(feed, m, true));
+  feed.scrollTop = feed.scrollHeight;
 
-  if (data.activeSurvey) {
-    activeSurvey = data.activeSurvey;
-    renderActiveSurvey();
-  }
-
-  if (data.resources && data.resources.length > 0) {
-    sharedResources = data.resources;
-    renderStudentResources(false);
-  }
+  activeSurvey = data.activeSurvey || null;
+  myResponses = data.myResponses || {};
+  renderActiveSurvey();
+  sharedResources = data.resources || [];
+  renderStudentResources(false);
 
   renderStaffList(data.assistants || []);
 
   // 화이트보드 초기화 + 누적 내용 재생 (학생도 협업 그리기 가능, 전체 지우기는 불가)
   if (!wbStarted) {
-    Whiteboard.init({ socket, canClear: false });
+    Whiteboard.init({ socket, canClear: false, isReady: () => connection.isReady(), uploadHeaders: () => connection.uploadHeaders() });
     wbStarted = true;
   }
   Whiteboard.load(data.whiteboard || []);
@@ -192,7 +179,6 @@ socket.on('student:joined', data => {
   if (expiryIntervalId) clearInterval(expiryIntervalId);
   expiryIntervalId = setInterval(updateExpiryDisplay, 60000);
 
-  startKeepAlive();
 });
 
 // ── Socket: staff (강사·조교) list ───────────────────────────────────────────
@@ -222,17 +208,16 @@ function renderStaffList(staff) {
 function updateExpiryDisplay() {
   const el = $('room-expire-info');
   if (!el) return;
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const diff = midnight - now;
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  el.textContent = `방 유지: 오늘 자정까지 (${h}시간 ${m}분 남음)`;
+  el.textContent = '참여 중인 강의실은 계속 유지됩니다.';
 }
 
-socket.on('app:error', ({ message }) => {
-  showJoinError(message);
+socket.on('app:error', error => {
+  if (error.event === 'student:join') {
+    connection.failJoin(error);
+  } else {
+    showJoinError(error.message);
+    showToast(error.message);
+  }
 });
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -264,22 +249,28 @@ sidebarOverlay.addEventListener('click', () => {
 // ── Exit ───────────────────────────────────────────────────────────────────
 $('exit-btn').addEventListener('click', () => {
   if (confirm('강의실을 나가시겠습니까?')) {
-    stopKeepAlive();
-    socket.disconnect();
+    connection.leave();
     window.location.href = '/';
   }
 });
 
 // ── Chat ───────────────────────────────────────────────────────────────────
 const chatFeed = $('chat-feed');
+const renderedMessages = new Set();
+let sendingChat = false;
+let pendingChat = null;
 
-function renderMsg(container, msg) {
+function renderMsg(container, msg, batch = false) {
+  if (!msg || (msg.id && renderedMessages.has(msg.id))) return;
+  if (msg.id) renderedMessages.add(msg.id);
+  const nearBottom = !batch && container.scrollHeight - container.scrollTop - container.clientHeight < 100;
   const div = document.createElement('div');
+  if (msg.id) div.dataset.messageId = msg.id;
   if (msg.type === 'system') {
     div.className = 'msg msg-system';
     div.innerHTML = `<span>${esc(msg.text)}</span>`;
   } else {
-    const isMe = msg.socketId && msg.socketId === mySocketId;
+    const isMe = (msg.participantId && msg.participantId === connection.participantId) || (msg.socketId && msg.socketId === mySocketId);
     div.className = `msg ${isMe ? 'msg-me' : 'msg-other'}`;
     if (msg.type === 'file') {
       div.innerHTML = `${!isMe ? `<div class="msg-sender">${esc((msg.senderEmoji||'') + ' ' + (msg.senderName||''))}</div>` : ''}
@@ -292,37 +283,61 @@ function renderMsg(container, msg) {
     }
   }
   container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+  while (container.children.length > 500) {
+    const first = container.firstElementChild;
+    renderedMessages.delete(first.dataset.messageId);
+    first.remove();
+  }
+  if (!batch && (nearBottom || msg.participantId === connection.participantId)) container.scrollTop = container.scrollHeight;
 }
 
 socket.on('message:new', msg => renderMsg(chatFeed, msg));
 
 $('chat-send-btn').addEventListener('click', sendChat);
-$('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+$('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendChat(); } });
 
-function sendChat() {
-  const text = $('chat-input').value.trim();
-  if (!text) return;
-  socket.emit('message:send', { text });
-  $('chat-input').value = '';
+async function sendChat() {
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text || sendingChat) return;
+  if (text.length > 2000) { showToast('메시지는 2,000자까지 입력할 수 있습니다.'); return; }
+  if (!pendingChat || pendingChat.text !== text) pendingChat = { text, id: crypto.randomUUID() };
+  const draft = input.value;
+  sendingChat = true;
+  $('chat-send-btn').disabled = true;
+  try {
+    const message = await connection.send('message:send', { text }, pendingChat.id);
+    if (message) renderMsg(chatFeed, message);
+    if (input.value === draft) input.value = '';
+    pendingChat = null;
+  } catch (error) {
+    showToast(error.message, 5000);
+  } finally {
+    sendingChat = false;
+    $('chat-send-btn').disabled = false;
+  }
 }
 
 $('file-upload-btn').addEventListener('click', () => $('file-input').click());
 $('file-input').addEventListener('change', async function() {
   const file = this.files[0];
   if (!file) return;
+  if (file.size > 20 * 1024 * 1024) { showToast('파일은 20MB까지 업로드할 수 있습니다.'); this.value = ''; return; }
+  const button = $('file-upload-btn');
+  button.disabled = true;
   const fd = new FormData();
   fd.append('file', file);
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.url) {
-      socket.emit('message:file', { url: data.url, filename: data.filename });
-    }
-  } catch(e) {
-    showToast('파일 업로드 실패');
+    const data = await eduRequestJson('/api/upload', { method: 'POST', headers: connection.uploadHeaders(), body: fd }, 60000);
+    if (!data.url) throw new Error('파일 업로드에 실패했습니다.');
+    const message = await connection.send('message:file', { url: data.url, filename: data.filename });
+    if (message) renderMsg(chatFeed, message);
+  } catch (error) {
+    showToast(error.message, 5000);
+  } finally {
+    button.disabled = false;
+    this.value = '';
   }
-  this.value = '';
 });
 
 // ── Student list ───────────────────────────────────────────────────────────
@@ -413,7 +428,7 @@ function renderActiveSurvey() {
 
 window.respondSurvey = function(optionIndex) {
   if (!activeSurvey || activeSurvey.closed) return;
-  socket.emit('survey:respond', { surveyId: activeSurvey.id, optionIndex });
+  connection.emit('survey:respond', { surveyId: activeSurvey.id, optionIndex });
 };
 
 // ── Survey results modal ───────────────────────────────────────────────────
@@ -441,7 +456,9 @@ $('results-close-btn').addEventListener('click', () => {
 
 // ── Resources ──────────────────────────────────────────────────────────────
 socket.on('resource:shared', resource => {
+  if (sharedResources.some(item => item.id === resource.id)) return;
   sharedResources.push(resource);
+  if (sharedResources.length > 100) sharedResources.shift();
   renderStudentResources(true);
   showToast('📚 새 교육자료가 공유되었습니다!');
   switchTab('resources');
@@ -452,6 +469,7 @@ function renderStudentResources(isNew) {
   const emptyEl = $('resources-empty');
 
   if (sharedResources.length === 0) {
+    pane.querySelectorAll('.resource-view-card').forEach(el => el.remove());
     emptyEl.style.display = '';
     return;
   }
@@ -462,6 +480,8 @@ function renderStudentResources(isNew) {
     const r = sharedResources[sharedResources.length - 1];
     const card = createResourceCard(r, true);
     emptyEl.insertAdjacentElement('afterend', card);
+    const cards = pane.querySelectorAll('.resource-view-card');
+    if (cards.length > 100) cards[cards.length - 1].remove();
   } else {
     // Full render: remove old cards, then insert each in array order so newest (last) ends up at top
     pane.querySelectorAll('.resource-view-card').forEach(el => el.remove());
@@ -533,7 +553,7 @@ function createResourceCard(r, badge) {
 
 // ── Room expired ───────────────────────────────────────────────────────────
 socket.on('room:expired', ({ reason }) => {
-  stopKeepAlive();
+  connection.stop();
   alert(reason || '강의방이 만료되었습니다. 처음 화면으로 돌아갑니다.');
   socket.disconnect();
   window.location.href = '/';
@@ -541,10 +561,11 @@ socket.on('room:expired', ({ reason }) => {
 
 // ── AI Chat ────────────────────────────────────────────────────────────────
 const aiHistory = [];
+let aiSending = false;
 
 $('ai-send-btn').addEventListener('click', sendAiMessage);
 $('ai-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAiMessage(); }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendAiMessage(); }
 });
 
 function appendAiMsg(role, text) {
@@ -565,38 +586,42 @@ function appendAiMsg(role, text) {
   }
 
   feed.appendChild(div);
+  while (feed.children.length > 80) feed.firstElementChild.remove();
   feed.scrollTop = feed.scrollHeight;
   return div;
 }
 
 async function sendAiMessage() {
+  if (aiSending) return;
   const apiKey = $('ai-api-key').value.trim();
   const model = $('ai-model').value;
   const text = $('ai-input').value.trim();
   if (!apiKey) { showToast('API 키를 입력하세요'); return; }
   if (!text) return;
+  if (text.length > 12000) { showToast('질문은 12,000자까지 입력할 수 있습니다.'); return; }
+  if (!connection.isReady()) { showToast('강의실 연결 복구 후 다시 시도하세요.'); return; }
+  aiSending = true;
   $('ai-input').value = '';
   appendAiMsg('user', text);
-  aiHistory.push({ role: 'user', content: text });
+  const requestHistory = [...aiHistory, { role: 'user', content: text }];
+  while (requestHistory.length > 39 || requestHistory.reduce((sum, item) => sum + item.content.length, 0) > 50000) requestHistory.splice(0, 2);
   $('ai-send-btn').disabled = true;
   const loadingEl = appendAiMsg('loading', '');
   try {
-    const res = await fetch('/api/ai/chat', {
+    const data = await eduRequestJson('/api/ai/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: aiHistory, model, apiKey })
-    });
-    const data = await res.json();
+      headers: { 'Content-Type': 'application/json', ...connection.uploadHeaders() },
+      body: JSON.stringify({ messages: requestHistory, model, apiKey })
+    }, 65000);
+    if (typeof data.content !== 'string') throw new Error('AI 응답을 확인할 수 없습니다. 다시 시도하세요.');
+    aiHistory.splice(0, aiHistory.length, ...requestHistory, { role: 'assistant', content: data.content });
+    appendAiMsg('assistant', data.content);
+  } catch (error) {
+    appendAiMsg('error', error.message);
+    if (!$('ai-input').value) $('ai-input').value = text;
+  } finally {
     loadingEl.remove();
-    if (!res.ok) {
-      appendAiMsg('error', data.error || '오류 발생');
-    } else {
-      aiHistory.push({ role: 'assistant', content: data.content });
-      appendAiMsg('assistant', data.content);
-    }
-  } catch(e) {
-    loadingEl.remove();
-    appendAiMsg('error', e.message);
+    aiSending = false;
+    $('ai-send-btn').disabled = false;
   }
-  $('ai-send-btn').disabled = false;
 }
