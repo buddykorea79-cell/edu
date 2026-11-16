@@ -8,6 +8,9 @@ const { monitorEventLoopDelay } = require('node:perf_hooks');
 const { createRealtime } = require('./lib/realtime');
 const { installHttpServices } = require('./lib/http-services');
 const { createClient } = require('@supabase/supabase-js');
+const QRCode = require('qrcode');
+const { createHostIdentity } = require('./lib/host-identity');
+const { LIMITS } = require('./lib/realtime');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,28 +22,9 @@ const io = new Server(server, {
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 
-// 관리자 = 아래 이메일의 Google 계정. 이 계정으로 Google 로그인하면
-// 관리자 페이지를 사용할 수 있고, 강사 프로필도 자동 승인된다.
+// Google OAuth is used only for the administrator. Room hosts are anonymous.
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'buddykorea79@gmail.com').toLowerCase();
 
-// ── Supabase (인증 + 강사 프로필 영속화) ─────────────────────────────────────
-// 인증은 Supabase Auth(Google OAuth)가 담당하고, 이 서버는 access token 을
-// 검증한 뒤 instructor_profiles 테이블의 승인 상태만 관리한다.
-//
-// 필요 환경변수:
-//   SUPABASE_URL              — 프로젝트 URL
-//   SUPABASE_SERVICE_ROLE_KEY — 서버 전용 (토큰 검증·프로필 관리)
-//   SUPABASE_ANON_KEY         — 브라우저 전용 (Google 로그인) — /api/config 로 노출
-//
-// 프로필 테이블 생성 SQL (프로젝트 SQL 에디터에서 한 번만 실행):
-//   CREATE TABLE IF NOT EXISTS instructor_profiles (
-//     user_id     UUID    PRIMARY KEY,
-//     email       TEXT    UNIQUE NOT NULL,
-//     name        TEXT    NOT NULL,
-//     status      TEXT    NOT NULL DEFAULT 'pending',
-//     created_at  BIGINT  NOT NULL,
-//     approved_at BIGINT
-//   );
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -55,47 +39,10 @@ const supabase = (SUPABASE_URL && SUPABASE_KEY)
   : null;
 
 if (!supabase) {
-  console.warn('Supabase not configured — instructor login is unavailable (set SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY)');
+  console.warn('Supabase not configured — administrator login is unavailable (set SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY)');
 }
 
-// ── Instructor profiles (인메모리 캐시 + Supabase write-through) ─────────────
-let instructorProfiles = []; // { userId, email, name, status, createdAt, approvedAt }
-let profilesLoaded = false;
-
-function dbToProfile(r) {
-  return {
-    userId: r.user_id, email: r.email, name: r.name,
-    status: r.status, createdAt: r.created_at, approvedAt: r.approved_at ?? null
-  };
-}
-
-async function loadInstructorProfiles() {
-  if (!supabase) return;
-  const { data, error } = await supabase.from('instructor_profiles').select('*');
-  if (error) throw error;
-  instructorProfiles = (data || []).map(dbToProfile);
-  profilesLoaded = true;
-  console.log(`Loaded ${instructorProfiles.length} instructor profiles from Supabase`);
-}
-
-const profilesReady = loadInstructorProfiles().catch(e => console.error('Supabase init error:', e.message));
-
-async function findInstructorProfile(userId) {
-  await profilesReady;
-  const cached = instructorProfiles.find(p => p.userId === userId);
-  if (cached) return cached;
-  if (!supabase) return null;
-  const { data, error } = await supabase.from('instructor_profiles').select('*').eq('user_id', userId).maybeSingle();
-  if (error) throw Object.assign(new Error('인증 서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.'), { code: 'AUTH_UNAVAILABLE', status: 503 });
-  if (!data) return null;
-  const profile = dbToProfile(data);
-  const existing = instructorProfiles.find(p => p.userId === userId);
-  if (existing) return existing;
-  instructorProfiles.push(profile);
-  return profile;
-}
-
-// Supabase access token 검증 → 사용자 반환 (강사 입장 / 관리자 로그인 공통)
+// Validate the administrator's Supabase access token.
 async function getAuthUser(token) {
   if (!supabase || typeof token !== 'string' || !token || token.length > 16384) return null;
   try {
@@ -118,11 +65,9 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 
 // ── Room state and realtime protocol ────────────────────────────────────────
+const hostIdentity = createHostIdentity();
 const realtime = createRealtime(io, {
-  authenticateInstructor: async token => {
-    const user = await getAuthUser(token);
-    return user ? findInstructorProfile(user.id) : null;
-  }
+  authenticateInstructor: async token => hostIdentity.verify(token)
 });
 const { rooms, getRoom, createRoom, getHttpSession } = realtime;
 // ── Express middleware ────────────────────────────────────────────────────────
@@ -136,7 +81,7 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 // Serve the exact installed auth client locally; a school network blocking a CDN
-// must not prevent instructor/admin login from loading.
+// must not prevent administrator login from loading.
 app.get('/vendor/supabase.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js'));
 });
@@ -180,54 +125,57 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-// ── 강사 세션: Google 로그인 직후 호출 — 프로필 조회 (없으면 자동 생성) ───────
-// Authorization: Bearer <supabase access token>
 const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-app.post('/api/instructor/session', asyncRoute(async (req, res) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const user = await getAuthUser(token);
-  if (!user) {
-    return res.status(401).json({ ok: false, error: '인증에 실패했습니다. 다시 로그인하세요.' });
+// The browser's current origin keeps QR links on HTTPS behind Render's proxy.
+function requestOrigin(req) {
+  if (process.env.PUBLIC_ORIGIN) return new URL(process.env.PUBLIC_ORIGIN).origin;
+  const protocol = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+  return new URL(protocol + '://' + req.get('host')).origin;
+}
+
+function sameOrigin(req, res, next) {
+  const origin = req.get('origin');
+  if ((origin && origin !== requestOrigin(req)) || req.get('sec-fetch-site') === 'cross-site') {
+    return res.status(403).json({ ok: false, error: '현재 사이트에서 다시 시도하세요.' });
   }
+  next();
+}
 
-  const email = (user.email || '').toLowerCase();
-  let prof = await findInstructorProfile(user.id);
+app.get('/api/host/session', sameOrigin, (req, res) => {
+  const { token, account } = hostIdentity.session(req, res);
+  res.json({ ok: true, token, room: realtime.findOwnedRoom(account.userId), roomLimit: LIMITS.rooms });
+});
 
-  if (!prof) {
-    const isAdmin = email === ADMIN_EMAIL;
-    const meta = user.user_metadata || {};
-    prof = {
-      userId: user.id,
-      email,
-      name: String(meta.full_name || meta.name || email.split('@')[0]).slice(0, 30),
-      status: isAdmin ? 'approved' : 'pending',   // 관리자 계정은 자동 승인
-      createdAt: Date.now(),
-      approvedAt: isAdmin ? Date.now() : null
-    };
-    const { error } = await supabase.from('instructor_profiles').insert({
-      user_id: prof.userId, email: prof.email, name: prof.name,
-      status: prof.status, created_at: prof.createdAt, approved_at: prof.approvedAt
-    });
-    if (error && error.code !== '23505') {
-      console.error('Supabase profile insert error:', error.message);
-      return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
-    }
-    if (error?.code === '23505') {
-      prof = await findInstructorProfile(user.id);
-      if (!prof) throw new Error('Profile creation race');
-    } else if (!instructorProfiles.some(p => p.userId === user.id)) {
-      instructorProfiles.push(prof);
-    }
+app.post('/api/rooms', sameOrigin, (req, res) => {
+  const account = hostIdentity.verify(hostIdentity.read(req));
+  if (!account) return res.status(401).json({ ok: false, code: 'HOST_SESSION', error: '페이지를 새로고침하고 쿠키 허용 여부를 확인하세요.' });
+  const lectureName = req.body?.lectureName;
+  if (typeof lectureName !== 'string' || !lectureName.trim() || lectureName.trim().length > 100) {
+    return res.status(400).json({ ok: false, code: 'INVALID', error: '강의실 이름을 1~100자로 입력하세요.' });
   }
+  const result = realtime.createOwnedRoom(account.userId, lectureName);
+  res.status(result.ok ? 201 : 409).json(result);
+});
 
-  res.json({
-    ok: true,
-    status: prof.status,
-    name: prof.name,
-    email: prof.email,
-    isAdmin: email === ADMIN_EMAIL
-  });
+function roomSummary(includePrivate = false) {
+  const list = Array.from(rooms, ([roomCode, room]) => ({
+    roomCode, lectureName: room.lectureName,
+    participantCount: [...room.students.values(), ...room.assistants.values()].filter(member => member.connected).length,
+    capacity: room.capacity,
+    ...(includePrivate ? { createdAt: room.createdAt } : {})
+  }));
+  return { ok: true, roomLimit: LIMITS.rooms, roomCount: list.length,
+    totalParticipants: list.reduce((sum, room) => sum + room.participantCount, 0), rooms: list };
+}
+app.get('/api/rooms', (req, res) => res.json(roomSummary()));
+
+app.get('/api/room/:code/qr.svg', asyncRoute(async (req, res) => {
+  if (!getRoom(req.params.code)) return res.status(404).json({ ok: false, error: '강의실을 찾을 수 없습니다.' });
+  const joinUrl = new URL('/student.html', requestOrigin(req));
+  joinUrl.searchParams.set('code', req.params.code);
+  const svg = await QRCode.toString(joinUrl.href, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, width: 320 });
+  res.type('image/svg+xml').send(svg);
 }));
 
 // ── 관리자: 로그인 — ADMIN_EMAIL 의 Google 계정으로 인증 ─────────────────────
@@ -237,7 +185,9 @@ app.post('/api/admin/auth', asyncRoute(async (req, res) => {
   if (!user) {
     return res.status(401).json({ ok: false, error: '인증에 실패했습니다. 다시 로그인하세요.' });
   }
-  if ((user.email || '').toLowerCase() !== ADMIN_EMAIL) {
+  const usesGoogle = user.app_metadata?.provider === 'google' ||
+    user.identities?.some(identity => identity.provider === 'google');
+  if ((user.email || '').toLowerCase() !== ADMIN_EMAIL || !usesGoogle) {
     return res.status(403).json({ ok: false, error: '관리자 계정이 아닙니다.' });
   }
   const adminToken = crypto.randomBytes(24).toString('hex');
@@ -256,74 +206,15 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-const profileMutations = new Set();
-const profileMutation = fn => asyncRoute(async (req, res) => {
-  const id = req.params.id;
-  if (profileMutations.has(id)) return res.status(409).json({ ok: false, error: '이 계정을 처리 중입니다. 잠시 후 다시 시도하세요.' });
-  profileMutations.add(id);
-  try { await fn(req, res); }
-  finally { profileMutations.delete(id); }
+app.get('/api/admin/rooms', requireAdmin, (req, res) => res.json(roomSummary(true)));
+app.delete('/api/admin/rooms/:code', requireAdmin, sameOrigin, (req, res) => {
+  if (!realtime.deleteRoom(req.params.code)) return res.status(404).json({ ok: false, error: '이미 삭제되었거나 존재하지 않는 강의실입니다.' });
+  res.json({ ok: true });
 });
-
-// ── 관리자: 강사 목록 조회 ─────────────────────────────────────────────────────
-app.get('/api/admin/instructors', requireAdmin, asyncRoute(async (req, res) => {
-  await profilesReady;
-  if (!profilesLoaded) await loadInstructorProfiles();
-  res.json({
-    ok: true,
-    instructors: instructorProfiles.map(p => ({
-      id: p.userId, name: p.name, email: p.email,
-      status: p.status, createdAt: p.createdAt, approvedAt: p.approvedAt
-    }))
-  });
-}));
-
-// ── 관리자: 승인 / 거절 / 보류 ─────────────────────────────────────────────────
-app.post('/api/admin/instructors/:id/status', requireAdmin, profileMutation(async (req, res) => {
-  const { status } = req.body || {};
-  if (!['approved', 'rejected', 'pending'].includes(status)) {
-    return res.status(400).json({ ok: false, error: '잘못된 상태값입니다.' });
-  }
-  const prof = instructorProfiles.find(p => p.userId === req.params.id);
-  if (!prof) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
-  if (prof.email === ADMIN_EMAIL && status !== 'approved') {
-    return res.status(400).json({ ok: false, error: '관리자 계정의 승인 상태는 변경할 수 없습니다.' });
-  }
-
-  const approvedAt = status === 'approved' ? Date.now() : null;
-  const update = { status };
-  update.approved_at = approvedAt;
-  const { error } = await supabase.from('instructor_profiles').update(update).eq('user_id', prof.userId);
-  if (error) {
-    console.error('Supabase status update error:', error.message);
-    return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
-  }
-  prof.status = status;
-  prof.approvedAt = approvedAt;
-  if (status !== 'approved') realtime.revokeInstructor(prof.userId);
-  else realtime.allowInstructor(prof.userId);
+app.post('/api/admin/logout', requireAdmin, sameOrigin, (req, res) => {
+  adminTokens.delete(req.headers['x-admin-token']);
   res.json({ ok: true });
-}));
-
-// ── 관리자: 계정 삭제 (프로필 + Supabase Auth 사용자 모두 삭제) ───────────────
-app.delete('/api/admin/instructors/:id', requireAdmin, profileMutation(async (req, res) => {
-  const idx = instructorProfiles.findIndex(p => p.userId === req.params.id);
-  if (idx === -1) return res.status(404).json({ ok: false, error: '계정을 찾을 수 없습니다.' });
-  if (instructorProfiles[idx].email === ADMIN_EMAIL) {
-    return res.status(400).json({ ok: false, error: '관리자 계정은 삭제할 수 없습니다.' });
-  }
-
-  const { error: authError } = await supabase.auth.admin.deleteUser(req.params.id);
-  if (authError && authError.status !== 404) throw authError;
-  realtime.revokeInstructor(req.params.id);
-  const { error } = await supabase.from('instructor_profiles').delete().eq('user_id', req.params.id);
-  if (error) {
-    console.error('Supabase delete error:', error.message);
-    return res.status(500).json({ ok: false, error: '서버 오류가 발생했습니다.' });
-  }
-  instructorProfiles = instructorProfiles.filter(p => p.userId !== req.params.id);
-  res.json({ ok: true });
-}));
+});
 
 // 방 정보 조회 (URL 코드 접근 / 입장 전 정원 안내용)
 app.get('/api/room/:code', (req, res) => {
