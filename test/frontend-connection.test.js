@@ -111,6 +111,35 @@ test('replaced sessions stop reconnecting and reject pending sends', async () =>
   await rejection;
 });
 
+test('admin room deletion stops retries, rejects pending messages and never rejoins the deleted room', async () => {
+  const f = fixture();
+  f.join();
+  const pending = f.connection.send('message:send', { text: '대기 중' }, 'deleted-room-message');
+  const rejected = assert.rejects(pending, /종료/);
+  const previousAck = f.outgoing.at(-1).ack;
+  f.socket.disconnect();
+  f.socket.connect();
+  f.connection.failJoin({ code: 'NOT_FOUND', message: '강의실을 찾을 수 없습니다.' });
+  assert.ok(f.timers.size > 0);
+  const outgoingCount = f.outgoing.length;
+  f.handlers.get('room:closed')({ message: '관리자가 강의실을 삭제했습니다.' });
+  await rejected;
+  assert.equal(f.connection.desired, null);
+  assert.equal(f.connection.pending.size, 0);
+  assert.equal(f.connection.hadJoined, false);
+  assert.equal(f.connection.recoveryDeadline, 0);
+  assert.equal(f.connection.isReady(), false);
+  assert.equal(f.connection.uploadToken, '');
+  assert.equal(f.status.textContent, '강의실 종료');
+  assert.equal(f.errors.at(-1).code, 'ROOM_CLOSED');
+  assert.equal(f.timers.size, 0);
+  previousAck(new Error('late timeout'));
+  f.socket.disconnect();
+  f.socket.connect();
+  assert.equal(f.outgoing.length, outgoingCount);
+  assert.equal(f.connection.desired, null);
+});
+
 test('missing room after restart retries briefly before returning an actionable error', () => {
   const f = fixture();
   f.join();

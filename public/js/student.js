@@ -55,7 +55,15 @@ const connection = new EduTalkConnection(socket, {
   joinEvent: 'student:join',
   onNotice: showToast,
   onError: error => {
-    if (['NOT_FOUND', 'ROOM_NOT_FOUND', 'FULL', 'REPLACED'].includes(error.code)) showScreen('screen-join');
+    if (['NOT_FOUND', 'ROOM_NOT_FOUND', 'ROOM_CLOSED', 'FULL', 'REPLACED'].includes(error.code)) {
+      showScreen('screen-join');
+      $('results-modal').style.display = 'none';
+      $('sidebar').classList.remove('open');
+      sidebarOverlay.classList.remove('visible');
+      $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
+      window.EduTalkEmojiPicker?.close();
+      clearInterval(expiryIntervalId);
+    }
     showJoinError(error.message || error.error);
     showToast(error.message || error.error);
   }
@@ -92,6 +100,7 @@ $('join-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') do
   const code = params.get('code');
   if (code && /^\d{6}$/.test(code)) {
     $('join-room-code').value = code;
+    $('join-link-info').classList.remove('hidden');
     fetchRoomInfo(code);
     $('join-name').focus();
   }
@@ -99,6 +108,7 @@ $('join-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') do
 
 // 방 코드 입력이 끝나면 방 정보(강의명/정원) 조회
 $('join-room-code').addEventListener('change', () => {
+  $('join-link-info').classList.add('hidden');
   const code = $('join-room-code').value.trim();
   if (/^\d{6}$/.test(code)) fetchRoomInfo(code);
 });
@@ -143,11 +153,31 @@ function showJoinError(msg) {
   setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
+// Keep the invitation outside tab panes so late arrivals can always find it.
+function updateRoomInvite(code) {
+  $('persistent-room-code').textContent = code;
+  const image = $('persistent-room-qr');
+  image.alt = `${code}번 강의실 참여 QR 코드`;
+  if (image.dataset.roomCode !== code || image.classList.contains('hidden')) {
+    image.dataset.roomCode = code;
+    image.src = `/api/room/${code}/qr.svg`;
+  }
+}
+$('persistent-room-qr').addEventListener('load', () => {
+  $('persistent-room-qr').classList.remove('hidden');
+  $('persistent-qr-error').hidden = true;
+});
+$('persistent-room-qr').addEventListener('error', () => {
+  $('persistent-room-qr').classList.add('hidden');
+  $('persistent-qr-error').hidden = false;
+});
+
 // ── Socket: student joined ─────────────────────────────────────────────────
 socket.on('student:joined', data => {
   connection.acceptSnapshot(data);
   roomCode = data.roomCode;
   $('sb-room-code').textContent = roomCode;
+  updateRoomInvite(roomCode);
   $('sb-lecture-name').textContent = data.lectureName;
   $('sb-my-emoji').textContent = myEmoji;
   $('sb-my-name').textContent = myName;
@@ -181,7 +211,7 @@ socket.on('student:joined', data => {
 
 });
 
-// ── Socket: staff (강사·조교) list ───────────────────────────────────────────
+// ── Socket: staff (방장·조교) list ───────────────────────────────────────────
 socket.on('staff:list', staff => renderStaffList(staff));
 
 function renderStaffList(staff) {
@@ -236,14 +266,18 @@ const sidebarOverlay = document.createElement('div');
 sidebarOverlay.className = 'sidebar-overlay';
 document.body.appendChild(sidebarOverlay);
 
-$('mobile-menu-btn').addEventListener('click', () => {
-  $('sidebar').classList.add('open');
-  sidebarOverlay.classList.add('visible');
-});
-
-sidebarOverlay.addEventListener('click', () => {
-  $('sidebar').classList.remove('open');
-  sidebarOverlay.classList.remove('visible');
+function setSidebarOpen(open) {
+  $('sidebar').classList.toggle('open', open);
+  sidebarOverlay.classList.toggle('visible', open);
+  $('mobile-menu-btn').setAttribute('aria-expanded', String(open));
+}
+$('mobile-menu-btn').addEventListener('click', () => setSidebarOpen(!$('sidebar').classList.contains('open')));
+sidebarOverlay.addEventListener('click', () => setSidebarOpen(false));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && $('sidebar').classList.contains('open')) {
+    setSidebarOpen(false);
+    $('mobile-menu-btn').focus();
+  }
 });
 
 // ── Exit ───────────────────────────────────────────────────────────────────
@@ -558,70 +592,3 @@ socket.on('room:expired', ({ reason }) => {
   socket.disconnect();
   window.location.href = '/';
 });
-
-// ── AI Chat ────────────────────────────────────────────────────────────────
-const aiHistory = [];
-let aiSending = false;
-
-$('ai-send-btn').addEventListener('click', sendAiMessage);
-$('ai-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendAiMessage(); }
-});
-
-function appendAiMsg(role, text) {
-  const feed = $('ai-feed');
-  const div = document.createElement('div');
-  div.className = `ai-msg ${role}`;
-
-  if (role === 'loading') {
-    div.className = 'ai-msg loading';
-    div.innerHTML = `<div class="ai-bubble"><div class="ai-loading-dots"><span></span><span></span><span></span></div></div>`;
-  } else if (role === 'user') {
-    div.innerHTML = `<div class="ai-msg-role">나</div><div class="ai-bubble">${esc(text)}</div>`;
-  } else if (role === 'assistant') {
-    const body = window.renderMarkdown ? window.renderMarkdown(text) : esc(text);
-    div.innerHTML = `<div class="ai-msg-role">AI</div><div class="ai-bubble md-body">${body}</div>`;
-  } else if (role === 'error') {
-    div.innerHTML = `<div class="ai-bubble">⚠ ${esc(text)}</div>`;
-  }
-
-  feed.appendChild(div);
-  while (feed.children.length > 80) feed.firstElementChild.remove();
-  feed.scrollTop = feed.scrollHeight;
-  return div;
-}
-
-async function sendAiMessage() {
-  if (aiSending) return;
-  const apiKey = $('ai-api-key').value.trim();
-  const model = $('ai-model').value;
-  const text = $('ai-input').value.trim();
-  if (!apiKey) { showToast('API 키를 입력하세요'); return; }
-  if (!text) return;
-  if (text.length > 12000) { showToast('질문은 12,000자까지 입력할 수 있습니다.'); return; }
-  if (!connection.isReady()) { showToast('강의실 연결 복구 후 다시 시도하세요.'); return; }
-  aiSending = true;
-  $('ai-input').value = '';
-  appendAiMsg('user', text);
-  const requestHistory = [...aiHistory, { role: 'user', content: text }];
-  while (requestHistory.length > 39 || requestHistory.reduce((sum, item) => sum + item.content.length, 0) > 50000) requestHistory.splice(0, 2);
-  $('ai-send-btn').disabled = true;
-  const loadingEl = appendAiMsg('loading', '');
-  try {
-    const data = await eduRequestJson('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...connection.uploadHeaders() },
-      body: JSON.stringify({ messages: requestHistory, model, apiKey })
-    }, 65000);
-    if (typeof data.content !== 'string') throw new Error('AI 응답을 확인할 수 없습니다. 다시 시도하세요.');
-    aiHistory.splice(0, aiHistory.length, ...requestHistory, { role: 'assistant', content: data.content });
-    appendAiMsg('assistant', data.content);
-  } catch (error) {
-    appendAiMsg('error', error.message);
-    if (!$('ai-input').value) $('ai-input').value = text;
-  } finally {
-    loadingEl.remove();
-    aiSending = false;
-    $('ai-send-btn').disabled = false;
-  }
-}

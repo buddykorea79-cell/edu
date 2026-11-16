@@ -1,0 +1,32 @@
+/* The invitation stays in the fixed workspace header across every room tab. */
+.workspace-header.room-invite-header { gap: 22px; padding: 14px 30px; min-height: 142px; border-bottom: 1px solid var(--color-border-subtle); background: linear-gradient(110deg, #fff 30%, var(--color-primary-50)); }
+.room-invite-copy { min-width: 0; }
+.room-invite-header .eyebrow { margin: 0 0 7px; color: var(--color-primary-700); letter-spacing: .05em; font-size: 11px; }
+.workspace-header .room-invite-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
+.room-invite-label { color: var(--color-text-secondary); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.room-invite-number { color: var(--color-primary-900); font: 700 38px/1.2 var(--font-mono); letter-spacing: .1em; white-space: nowrap; }
+.room-invite-help { margin: 8px 0 0; color: var(--color-text-tertiary); font-size: 12px; line-height: 1.5; }
+.room-invite-qr-frame { display: flex; align-items: center; flex-direction: column; flex: 0 0 auto; gap: 3px; margin: 0; padding: 0; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: white; color: var(--color-primary-700); overflow: hidden; }
+button.room-invite-qr-frame { cursor: pointer; }
+button.room-invite-qr-frame:hover { border-color: var(--color-primary-400); }
+button.room-invite-qr-frame:focus-visible { outline: 3px solid var(--color-primary-400); outline-offset: 3px; }
+.room-invite-qr { display: block; width: 108px; height: 108px; object-fit: contain; background: white; }
+.room-invite-qr-caption { padding: 0 5px 5px; font-size: 10px; line-height: 1.3; white-space: nowrap; }
+.room-invite-qr-error { display: flex; align-items: center; justify-content: center; width: 108px; height: 108px; padding: 8px; text-align: center; font-size: 11px; line-height: 1.5; color: var(--color-text-secondary); }
+.room-invite-qr-error[hidden] { display: none; }
+@media (max-width: 768px) {
+  .workspace-header.room-invite-header,
+  body:has(#screen-room:not(.hidden)) .workspace-header.room-invite-header { padding: 10px 16px; gap: 12px; min-height: 134px; }
+  .room-invite-header .eyebrow { margin-bottom: 7px; font-size: 10px; }
+  .workspace-header .room-invite-title { gap: 4px 8px; }
+  .room-invite-number { font-size: 32px; letter-spacing: .08em; }
+  .room-invite-label { font-size: 12px; }
+  .room-invite-help { max-width: 230px; margin-top: 6px; font-size: 11px; }
+  .room-invite-qr, .room-invite-qr-error { width: 96px; height: 96px; }
+}
+@media (max-width: 360px) {
+  .workspace-header.room-invite-header,
+  body:has(#screen-room:not(.hidden)) .workspace-header.room-invite-header { padding-inline: 12px; gap: 10px; }
+  .room-invite-number { font-size: 29px; letter-spacing: .06em; }
+  .room-invite-help { max-width: 175px; }
+}

@@ -37,7 +37,19 @@ let mySocketId = '';
 const connection = new EduTalkConnection(socket, {
   joinEvent: 'instructor:join',
   onNotice: showToast,
-  onError: error => { if (error.code === 'AUTH') { showScreen('screen-auth'); showAuthState('login'); showError('auth-error', error.message || error.error); } else { showError('setup-error', error.message || error.error); showToast(error.message || error.error); } }
+  onError: error => {
+    showScreen('screen-setup');
+    if ($('room-share-dialog').open) $('room-share-dialog').close();
+    $('custom-survey-modal').style.display = 'none';
+    closeSidebar();
+    $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
+    window.EduTalkEmojiPicker?.close();
+    clearInterval(expiryIntervalId);
+    const message = error.message || error.error || '강의실에 연결하지 못했습니다.';
+    showError('setup-error', message);
+    showToast(message, 5000);
+    prepareSetup();
+  }
 });
 window.EduTalkSession = connection;
 socket.on('connect', () => { mySocketId = socket.id; });
@@ -48,170 +60,96 @@ let lectureName = '';
 let surveys = [];
 let resources = [];
 let expiryIntervalId = null;
-let setupMode = 'create';   // 'create' | 'assistant'
-let myRole = 'instructor';  // 'instructor' | 'assistant'
+let ownedRoom = null;
+let setupBusy = false;
 let wbStarted = false;
 
 // ── Screen management ──────────────────────────────────────────────────────
 function showScreen(id) {
-  ['screen-auth','screen-setup','screen-room'].forEach(s => {
+  ['screen-setup','screen-room'].forEach(s => {
     const el = $(s);
     if (el) el.classList.toggle('hidden', s !== id);
   });
 }
 
-// ── Auth (Supabase Google OAuth → 관리자 승인 후 사용) ──────────────────────
-let sb = null;             // Supabase 브라우저 클라이언트
-let myAccountName = '';
-
-// 인증 화면 내 상태 전환: loading | login | pending | rejected
-function showAuthState(state) {
-  ['auth-loading', 'auth-login', 'auth-pending', 'auth-rejected'].forEach(id => {
-    const el = $(id);
-    if (el) el.classList.toggle('hidden', id !== 'auth-' + state);
-  });
-}
-
-// 현재 세션의 access token (supabase-js 가 자동 갱신)
-async function currentToken() {
-  if (!sb) return '';
-  const { data } = await sb.auth.getSession();
-  return (data && data.session) ? data.session.access_token : '';
-}
-
-async function initAuth() {
-  try {
-    const cfg = await eduRequestJson('/api/config');
-    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-      showAuthState('login');
-      showError('auth-error', '서버에 인증이 설정되지 않았습니다. 관리자에게 문의하세요.');
-      $('google-login-btn').disabled = true;
-      return;
-    }
-    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-    const token = await currentToken();
-    if (token) await checkProfile(token);
-    else showAuthState('login');
-  } catch (e) {
-    showAuthState('login');
-    showError('auth-error', '서버 오류가 발생했습니다.');
-  }
-}
-
-// 서버에 프로필 확인 (첫 로그인이면 pending 으로 자동 등록됨)
-async function checkProfile(token) {
-  try {
-    const data = await eduRequestJson('/api/instructor/session', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (!data.ok) {
-      showAuthState('login');
-      showError('auth-error', data.error || '인증에 실패했습니다.');
-      return;
-    }
-    myAccountName = data.name || '';
-    if (data.status === 'approved') {
-      if (!$('setup-assistant-name').value) $('setup-assistant-name').value = myAccountName;
-      showScreen('screen-setup');
-    } else if (data.status === 'pending') {
-      showAuthState('pending');
-    } else {
-      showAuthState('rejected');
-    }
-  } catch (e) {
-    showAuthState('login');
-    showError('auth-error', '서버 오류가 발생했습니다.');
-  }
-}
-
-$('google-login-btn').addEventListener('click', async () => {
-  if (!sb) return;
-  await sb.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin + '/instructor.html' }
-  });
-});
-
-async function doLogout() {
-  connection.leave();
-  if (sb) await sb.auth.signOut();
-  showScreen('screen-auth');
-  showAuthState('login');
-}
-$('pending-logout-btn').addEventListener('click', doLogout);
-$('rejected-logout-btn').addEventListener('click', doLogout);
-
-initAuth();
-
+// ── Public room creation and browser ownership ────────────────────────────
 function showError(id, msg) {
   const el = $(id);
   if (!el) return;
   el.textContent = msg;
   el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
-// ── Setup ──────────────────────────────────────────────────────────────────
-// 역할 토글: 강의실 만들기 / 조교로 참여
-document.querySelectorAll('.mode-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    setupMode = btn.dataset.mode;
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
-    const isAssistant = setupMode === 'assistant';
-    $('setup-lecture-group').classList.toggle('hidden', isAssistant);
-    $('setup-assistant-name-group').classList.toggle('hidden', !isAssistant);
-    $('setup-subtitle').textContent = isAssistant ? '조교로 참여하기' : '강의실 만들기';
-    $('setup-btn').textContent = isAssistant ? '조교로 입장' : '강의실 열기';
-  });
-});
+async function hostSession() {
+  const data = await eduRequestJson('/api/host/session', {}, 15000);
+  if (!data.ok || !data.token) throw new Error(data.error || '이 PC의 강의실 정보를 확인하지 못했습니다.');
+  return data;
+}
 
-$('gen-code-btn').addEventListener('click', () => {
-  $('setup-room-code').value = Math.floor(100000 + Math.random() * 900000).toString();
-});
+function showOwnedRoom(room) {
+  ownedRoom = room || null;
+  $('setup-lecture-group').classList.toggle('hidden', !!ownedRoom);
+  $('owned-room-info').classList.toggle('hidden', !ownedRoom);
+  $('owned-room-info').textContent = ownedRoom ? `${ownedRoom.lectureName} · 방 코드 ${ownedRoom.roomCode}` : '';
+  $('setup-subtitle').textContent = ownedRoom ? '내 강의실로 돌아가기' : '강의실 만들기';
+  $('setup-btn').textContent = ownedRoom ? '내 강의실로 돌아가기' : '강의실 열기';
+}
+
+async function prepareSetup() {
+  if (setupBusy) return;
+  setupBusy = true;
+  $('setup-btn').disabled = true;
+  $('setup-loading').classList.remove('hidden');
+  try {
+    const session = await hostSession();
+    showOwnedRoom(session.room);
+  } catch (error) {
+    showError('setup-error', error.message);
+  } finally {
+    setupBusy = false;
+    $('setup-loading').classList.add('hidden');
+    $('setup-btn').disabled = false;
+  }
+}
 
 $('setup-btn').addEventListener('click', doSetup);
-$('setup-lecture').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
-$('setup-assistant-name').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
-$('setup-room-code').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
+$('setup-lecture').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.isComposing) doSetup();
+});
 
 async function doSetup() {
-  if (connection.joining) return;
-  const code = $('setup-room-code').value.trim();
-  if (!/^\d{6}$/.test(code)) { showError('setup-error', '6자리 숫자 방 코드를 입력하세요.'); return; }
-
-  const token = await currentToken();
-  if (!token) {
-    showScreen('screen-auth');
-    showAuthState('login');
-    showError('auth-error', '로그인이 만료되었습니다. 다시 로그인하세요.');
-    return;
+  if (setupBusy || connection.joining) return;
+  setupBusy = true;
+  $('setup-btn').disabled = true;
+  $('setup-error').style.display = 'none';
+  try {
+    // Another tab may already have created or deleted the browser's room.
+    const session = await hostSession();
+    showOwnedRoom(session.room);
+    let target = session.room;
+    if (!target) {
+      const name = $('setup-lecture').value.trim();
+      if (!name) { showError('setup-error', '강의 이름을 입력하세요.'); $('setup-lecture').focus(); return; }
+      target = await eduRequestJson('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lectureName: name })
+      }, 15000);
+      if (!target.ok) throw new Error(target.error || '강의실을 만들지 못했습니다.');
+    }
+    roomCode = target.roomCode;
+    lectureName = target.lectureName;
+    showOwnedRoom({ roomCode, lectureName });
+    const targetCode = roomCode;
+    connection.join(async () => ({ roomCode: targetCode, token: (await hostSession()).token }));
+  } catch (error) {
+    showError('setup-error', error.message);
+    // Recover an owned room even if creation succeeded but its response was lost.
+    try { showOwnedRoom((await hostSession()).room); } catch (_) {}
+  } finally {
+    setupBusy = false;
+    $('setup-btn').disabled = false;
   }
-
-  if (setupMode === 'assistant') {
-    const aName = $('setup-assistant-name').value.trim();
-    if (!aName) { showError('setup-error', '조교 이름을 입력하세요.'); return; }
-    roomCode = code;
-    myRole = 'assistant';
-    connection.join(async () => ({ roomCode, asAssistant: true, name: aName, token: await tokenForJoin() }));
-  } else {
-    const name = $('setup-lecture').value.trim();
-    if (!name) { showError('setup-error', '강의 이름을 입력하세요.'); return; }
-    lectureName = name;
-    roomCode = code;
-    myRole = 'instructor';
-    connection.join(async () => ({ roomCode, lectureName, token: await tokenForJoin() }));
-  }
-}
-
-async function tokenForJoin() {
-  const token = await currentToken();
-  if (!token) {
-    const error = new Error('로그인이 만료되었습니다. 다시 로그인하세요.');
-    error.code = 'AUTH';
-    throw error;
-  }
-  return token;
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -230,33 +168,80 @@ const sidebarOverlay = document.createElement('div');
 sidebarOverlay.className = 'sidebar-overlay';
 document.body.appendChild(sidebarOverlay);
 
+function closeSidebar() {
+  $('sidebar').classList.remove('open');
+  sidebarOverlay.classList.remove('visible');
+  $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
+}
+
 $('mobile-menu-btn').addEventListener('click', () => {
-  $('sidebar').classList.add('open');
-  sidebarOverlay.classList.add('visible');
+  const open = $('sidebar').classList.toggle('open');
+  sidebarOverlay.classList.toggle('visible', open);
+  $('mobile-menu-btn').setAttribute('aria-expanded', String(open));
 });
 
 sidebarOverlay.addEventListener('click', () => {
   $('sidebar').classList.remove('open');
   sidebarOverlay.classList.remove('visible');
+  $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && $('sidebar').classList.contains('open')) {
+    closeSidebar();
+    $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
+    $('mobile-menu-btn').focus();
+  }
 });
 
-// ── Copy room code ─────────────────────────────────────────────────────────
-$('copy-code-btn').addEventListener('click', () => {
-  navigator.clipboard.writeText(roomCode).then(() => showToast('방 코드가 복사되었습니다!'));
-});
-$('sb-room-code').addEventListener('click', () => {
-  navigator.clipboard.writeText(roomCode).then(() => showToast('방 코드가 복사되었습니다!'));
-});
+// ── Share code, link and QR ───────────────────────────────────────────────
+function participationLink() {
+  return `${window.location.origin}/student.html?code=${roomCode}`;
+}
 
-// ── 학생 입장 링크 복사 (URL ?code= 방식) ────────────────────────────────────
-$('share-link-btn').addEventListener('click', () => {
-  const link = `${window.location.origin}/student.html?code=${roomCode}`;
-  navigator.clipboard.writeText(link).then(() => showToast('입장 링크가 복사되었습니다!'));
+async function copyText(value, successMessage) {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+    await navigator.clipboard.writeText(value);
+    showToast(successMessage);
+  } catch (_) {
+    showShareDialog();
+    $('room-share-link').focus();
+    $('room-share-link').select();
+    showToast('아래 참여 링크를 길게 누르거나 Ctrl+C로 복사하세요.', 5000);
+  }
+}
+
+$('copy-code-btn').addEventListener('click', () => copyText(roomCode, '방 코드가 복사되었습니다!'));
+$('sb-room-code').addEventListener('click', () => copyText(roomCode, '방 코드가 복사되었습니다!'));
+$('share-link-btn').addEventListener('click', () => copyText(participationLink(), '참여 링크가 복사되었습니다!'));
+$('copy-share-link-btn').addEventListener('click', () => copyText(participationLink(), '참여 링크가 복사되었습니다!'));
+
+function showShareDialog() {
+  if (!roomCode) return;
+  $('room-share-code').textContent = roomCode;
+  $('room-share-name').textContent = lectureName;
+  $('room-share-link').value = participationLink();
+  $('qr-error').classList.add('hidden');
+  $('room-qr-image').classList.remove('hidden');
+  $('room-qr-image').src = `/api/room/${roomCode}/qr.svg`;
+  if (!$('room-share-dialog').open) $('room-share-dialog').showModal();
+}
+
+$('show-qr-btn').addEventListener('click', showShareDialog);
+$('close-qr-btn').addEventListener('click', () => $('room-share-dialog').close());
+$('room-qr-image').addEventListener('error', () => {
+  $('room-qr-image').classList.add('hidden');
+  $('qr-error').classList.remove('hidden');
+});
+$('room-share-dialog').addEventListener('click', event => {
+  if (event.target !== $('room-share-dialog')) return;
+  const bounds = event.target.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.target.close();
 });
 
 // ── Exit ───────────────────────────────────────────────────────────────────
 $('exit-btn').addEventListener('click', () => {
-  if (confirm('강의를 종료하시겠습니까?')) {
+  if (confirm('강의실에서 나가시겠습니까? 이 PC에서 다시 돌아올 수 있습니다.')) {
     connection.leave();
     window.location.href = '/';
   }
@@ -361,20 +346,36 @@ socket.on('room:expired', ({ reason }) => {
   window.location.href = '/';
 });
 
+// Keep the invitation outside tab panes so late arrivals can always find it.
+function updateRoomInvite(code) {
+  $('persistent-room-code').textContent = code;
+  const image = $('persistent-room-qr');
+  image.alt = `${code}번 강의실 참여 QR 코드`;
+  if (image.dataset.roomCode !== code || image.classList.contains('hidden')) {
+    image.dataset.roomCode = code;
+    image.src = `/api/room/${code}/qr.svg`;
+  }
+}
+$('persistent-room-qr').addEventListener('load', () => {
+  $('persistent-room-qr').classList.remove('hidden');
+  $('persistent-qr-error').hidden = true;
+});
+$('persistent-room-qr').addEventListener('error', () => {
+  $('persistent-room-qr').classList.add('hidden');
+  $('persistent-qr-error').hidden = false;
+});
+$('persistent-qr-button').addEventListener('click', showShareDialog);
+
 // ── Socket: instructor joined ──────────────────────────────────────────────
 socket.on('instructor:joined', data => {
   connection.acceptSnapshot(data);
   roomCode = data.roomCode;
-  myRole = data.role || myRole;
   lectureName = data.lectureName || lectureName;
 
   showScreen('screen-room');
   $('sb-room-code').textContent = roomCode;
+  updateRoomInvite(roomCode);
   $('sb-lecture-name').textContent = lectureName;
-
-  // 조교 모드 표시
-  const badge = $('sb-role-badge');
-  if (badge) badge.classList.toggle('hidden', myRole !== 'assistant');
 
   // 정원 안내
   const capHint = $('capacity-hint');
@@ -633,7 +634,7 @@ function renderResources() {
     return;
   }
   section.style.display = '';
-  // 강사 자료 목록: 항목 전체를 새 창 링크로 만들어 클릭 시 바로 열리게 함
+  // 방장 자료 목록: 항목 전체를 새 창 링크로 만들어 클릭 시 바로 열리게 함
   itemsEl.innerHTML = [...resources].reverse().map(r => `
     <a class="resource-item" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">
       <div class="resource-icon">${r.type === 'pdf' ? '📄' : '🌐'}</div>
@@ -646,83 +647,15 @@ function renderResources() {
   `).join('');
 }
 
-// ── AI Chat ────────────────────────────────────────────────────────────────
-const aiHistory = [];
-let aiSending = false;
-
-$('ai-send-btn').addEventListener('click', sendAiMessage);
-$('ai-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendAiMessage(); }
-});
-
-function appendAiMsg(role, text) {
-  const feed = $('ai-feed');
-  const div = document.createElement('div');
-  div.className = `ai-msg ${role}`;
-
-  if (role === 'loading') {
-    div.className = 'ai-msg loading';
-    div.innerHTML = `<div class="ai-bubble"><div class="ai-loading-dots"><span></span><span></span><span></span></div></div>`;
-  } else if (role === 'user') {
-    div.innerHTML = `<div class="ai-msg-role">나</div><div class="ai-bubble">${esc(text)}</div>`;
-  } else if (role === 'assistant') {
-    const body = window.renderMarkdown ? window.renderMarkdown(text) : esc(text);
-    div.innerHTML = `<div class="ai-msg-role">AI</div><div class="ai-bubble md-body">${body}</div>`;
-  } else if (role === 'error') {
-    div.innerHTML = `<div class="ai-bubble">⚠ ${esc(text)}</div>`;
-  }
-
-  feed.appendChild(div);
-  while (feed.children.length > 80) feed.firstElementChild.remove();
-  feed.scrollTop = feed.scrollHeight;
-  return div;
-}
-
-async function sendAiMessage() {
-  if (aiSending) return;
-  const apiKey = $('ai-api-key').value.trim();
-  const model = $('ai-model').value;
-  const text = $('ai-input').value.trim();
-  if (!apiKey) { showToast('API 키를 입력하세요'); return; }
-  if (!text) return;
-  if (text.length > 12000) { showToast('질문은 12,000자까지 입력할 수 있습니다.'); return; }
-  if (!connection.isReady()) { showToast('강의실 연결 복구 후 다시 시도하세요.'); return; }
-  aiSending = true;
-  $('ai-input').value = '';
-  appendAiMsg('user', text);
-  const requestHistory = [...aiHistory, { role: 'user', content: text }];
-  while (requestHistory.length > 39 || requestHistory.reduce((sum, item) => sum + item.content.length, 0) > 50000) requestHistory.splice(0, 2);
-  $('ai-send-btn').disabled = true;
-  const loadingEl = appendAiMsg('loading', '');
-  try {
-    const data = await eduRequestJson('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...connection.uploadHeaders() },
-      body: JSON.stringify({ messages: requestHistory, model, apiKey })
-    }, 65000);
-    if (typeof data.content !== 'string') throw new Error('AI 응답을 확인할 수 없습니다. 다시 시도하세요.');
-    aiHistory.splice(0, aiHistory.length, ...requestHistory, { role: 'assistant', content: data.content });
-    appendAiMsg('assistant', data.content);
-  } catch (error) {
-    appendAiMsg('error', error.message);
-    if (!$('ai-input').value) $('ai-input').value = text;
-  } finally {
-    loadingEl.remove();
-    aiSending = false;
-    $('ai-send-btn').disabled = false;
-  }
-}
-
 // ── App error ──────────────────────────────────────────────────────────────
 socket.on('app:error', error => {
   const { message, code } = error;
   if (error.event === 'instructor:join') { connection.failJoin(error); return; }
-  // 인증 만료/미승인 — 로그인 화면으로
   if (code === 'AUTH') {
     connection.stop();
-    showScreen('screen-auth');
-    showAuthState('login');
-    showError('auth-error', message);
+    showScreen('screen-setup');
+    showError('setup-error', message);
+    prepareSetup();
     return;
   }
   // 입장 전(설정 화면) 단계의 오류는 설정 화면에 표시하고 머무름
@@ -732,3 +665,5 @@ socket.on('app:error', error => {
     showToast('오류: ' + message);
   }
 });
+
+prepareSetup();

@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="실시간 대화, 설문, 공유 화이트보드로 함께 배우는 공간. EduTalk에서 강의실을 열거나 방 코드로 참여하세요.">
-  <meta name="theme-color" content="#0d766e">
+  <meta name="theme-color" content="#2466b2">
   <title>EduTalk · 함께 배우는 공간</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/host.css">
 </head>
 <body>
   <div class="landing-shell">
@@ -17,14 +18,14 @@
         </span>
         <span>EduTalk</span>
       </a>
-      <span class="landing-nav-note">함께 배우는 공간</span>
+      <div class="landing-nav-actions"><span class="landing-nav-note">함께 배우는 공간</span><a href="/admin.html" class="admin-icon-link" aria-label="강의실 현황 및 관리자 로그인" title="강의실 현황 · 관리자"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4 4 7 8 9 4-2 8-5 8-9V6l-8-3Z"/><circle cx="12" cy="10" r="2"/><path d="M8 16c1-3 7-3 8 0"/></svg></a></div>
     </header>
 
     <main class="landing-main">
       <section class="landing-copy" aria-labelledby="landing-title">
         <p class="eyebrow">EDUTALK · LEARNING TOGETHER</p>
         <h1 class="landing-title" id="landing-title">질문이 오가고,<br>배움이 이어지는 곳.</h1>
-        <p class="landing-description">작은 질문도 편하게 나누세요.<br>강사와 학생이 함께 만드는 수업, EduTalk에서 시작합니다.</p>
+        <p class="landing-description">작은 질문도 편하게 나누세요.<br>방장과 학생이 함께 만드는 수업, EduTalk에서 시작합니다.</p>
         <ul class="landing-feature-list" aria-label="함께하는 수업을 위한 기능">
           <li class="landing-feature">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3V11.5A7.5 7.5 0 0 1 9.5 4h3A7.5 7.5 0 0 1 20 11.5Z"/><path d="M7 10h8M7 14h5"/></svg>
@@ -45,11 +46,11 @@
         <a href="/instructor.html" class="landing-card">
           <div class="landing-card-top">
             <span class="landing-card-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M8 10h8M12 7v6"/></svg></span>
-            <span class="landing-card-label">강사</span>
+            <span class="landing-card-label">방장</span>
           </div>
           <h2>강의실을 열어보세요</h2>
-          <p class="landing-card-desc">학생들의 생각을 듣고,<br>수업의 흐름을 함께 만들어가세요.</p>
-          <span class="landing-card-cta">강사로 시작하기 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <p class="landing-card-desc">로그인 없이 강의실을 열고,<br>함께하는 수업을 시작하세요.</p>
+          <span class="landing-card-cta">방장으로 시작하기 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
         </a>
         <a href="/student.html" class="landing-card">
           <div class="landing-card-top">
@@ -57,15 +58,15 @@
             <span class="landing-card-label">학생</span>
           </div>
           <h2>배움에 참여하세요</h2>
-          <p class="landing-card-desc">전달받은 방 코드를 입력하고,<br>궁금한 것부터 편하게 나눠보세요.</p>
-          <span class="landing-card-cta">학생으로 참여하기 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <p class="landing-card-desc">6자리 방 코드 또는 QR 코드로,<br>누구나 편하게 참여하세요.</p>
+          <span class="landing-card-cta">참여하기 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
         </a>
       </section>
     </main>
 
     <footer class="landing-footer">
       <span id="footer-info">EduTalk · 함께 배우는 공간</span>
-      <a href="/admin.html">관리자</a>
+      <a href="/admin.html">강의실 현황 · 전체 최대 5개</a>
     </footer>
   </div>
 </body>

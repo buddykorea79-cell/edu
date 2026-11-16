@@ -48,6 +48,7 @@ async function fixture(t, options = {}) {
     return socket;
   }
   async function staff(code = '123456') {
+    if (!realtime.getRoom(code)) realtime.createRoom(code, '부하 테스트').ownerId = 'teacher';
     const socket = await connect();
     const joined = event(socket, 'instructor:joined');
     assert.equal((await ack(socket, 'instructor:join', { roomCode: code, lectureName: '부하 테스트', token: 'teacher-token' })).ok, true);

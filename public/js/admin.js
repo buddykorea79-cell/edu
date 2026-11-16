@@ -1,244 +1,181 @@
 'use strict';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const esc = s => (!s ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
-
-function showToast(msg, duration = 2500) {
-  const t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), duration);
-}
-
-function dateStr(ts) {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// ── State ──────────────────────────────────────────────────────────────────
+const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 let adminToken = '';
-let sb = null;   // Supabase 브라우저 클라이언트
+let sb = null;
 let listVersion = 0;
-let hasLoadedList = false;
-const pendingAccounts = new Set();
+let lastList = null;
+let loading = false;
+const deletingRooms = new Set();
+
+function showToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+function showLoginError(message) {
+  $('login-error').textContent = message;
+  $('login-error').hidden = !message;
+}
+
+function updateAuth() {
+  const signedIn = !!adminToken;
+  $('login-loading').classList.add('hidden');
+  $('login-form').classList.toggle('hidden', signedIn);
+  $('google-login-btn').classList.toggle('hidden', signedIn);
+  $('logout-btn').classList.toggle('hidden', !signedIn);
+  $('admin-badge').classList.toggle('hidden', !signedIn);
+  $('created-heading').classList.toggle('hidden', !signedIn);
+  $('actions-heading').classList.toggle('hidden', !signedIn);
+  if (lastList) renderList(lastList);
+}
 
 function authTimeout(operation) {
   let timer;
-  return Promise.race([
-    operation,
-    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('인증 확인 시간이 초과되었습니다. 다시 시도하세요.')), 15000); })
-  ]).finally(() => clearTimeout(timer));
-}
-
-// ── Login (Supabase Google OAuth) ──────────────────────────────────────────
-function showLoginState(state) {  // 'loading' | 'form'
-  $('login-loading').classList.toggle('hidden', state !== 'loading');
-  $('login-form').classList.toggle('hidden', state !== 'form');
+  return Promise.race([operation, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('인증 확인 시간이 초과되었습니다. 다시 시도하세요.')), 15000);
+  })]).finally(() => clearTimeout(timer));
 }
 
 async function initAuth() {
   try {
-    const cfg = await eduRequestJson('/api/config', {}, 15000);
-    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-      showLoginState('form');
-      showLoginError('서버에 인증이 설정되지 않았습니다.');
+    const config = await eduRequestJson('/api/config', {}, 15000);
+    if (!config.supabaseUrl || !config.supabaseAnonKey) {
       $('google-login-btn').disabled = true;
+      $('google-login-btn').title = '관리자 로그인이 아직 설정되지 않았습니다';
+      $('login-form').textContent = '관리자 로그인은 서버 인증 설정 후 사용할 수 있어요.';
       return;
     }
-    sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    sb = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
     const { data, error } = await authTimeout(sb.auth.getSession());
     if (error) throw error;
-    if (data && data.session) {
-      await tryAdminAuth(data.session.access_token);
-    } else {
-      showLoginState('form');
+    if (data?.session) {
+      const result = await eduRequestJson('/api/admin/auth', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + data.session.access_token }
+      }, 15000);
+      if (!result.ok) throw new Error(result.error || '관리자 인증에 실패했습니다.');
+      adminToken = result.token;
+      updateAuth();
+      await loadRooms();
     }
-  } catch (e) {
-    showLoginState('form');
-    showLoginError(e.message || '서버에 연결할 수 없습니다. 다시 시도하세요.');
-  }
-}
-
-async function tryAdminAuth(accessToken) {
-  try {
-    const data = await eduRequestJson('/api/admin/auth', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + accessToken }
-    }, 15000);
-    if (data.ok) {
-      adminToken = data.token;
-      $('screen-login').classList.add('hidden');
-      $('screen-admin').classList.remove('hidden');
-      await loadInstructors();
-    } else {
-      throw new Error(data.error || '로그인에 실패했습니다.');
-    }
-  } catch (e) {
-    // Supabase auth storage is shared with instructor tabs. An admin-page error
-    // must not sign an ongoing class out, including when a non-admin opens it.
-    showLoginState('form');
-    showLoginError(e.message || '로그인에 실패했습니다. 다시 시도하세요.');
+  } catch (error) {
+    showLoginError(error.message || '관리자 인증에 실패했습니다.');
+  } finally {
+    updateAuth();
   }
 }
 
 $('google-login-btn').addEventListener('click', async () => {
-  const button = $('google-login-btn');
-  button.disabled = true;
+  $('google-login-btn').disabled = true;
+  showLoginError('');
   try {
     if (!sb) await initAuth();
     if (!sb || adminToken) return;
-    const { error } = await authTimeout(sb.auth.signInWithOAuth({
-      provider: 'google',
+    const { error } = await authTimeout(sb.auth.signInWithOAuth({ provider: 'google',
       options: { redirectTo: window.location.origin + '/admin.html', queryParams: { prompt: 'select_account' } }
     }));
     if (error) throw error;
-  } catch (error) {
-    showLoginError(error.message || 'Google 로그인에 실패했습니다. 다시 시도하세요.');
-  } finally {
-    button.disabled = false;
-  }
+  } catch (error) { showLoginError(error.message); }
+  finally { $('google-login-btn').disabled = !sb; }
 });
 
-initAuth();
-
-function showLoginError(msg) {
-  const el = $('login-error');
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
-}
-
-// ── Instructor list ────────────────────────────────────────────────────────
-$('refresh-btn').addEventListener('click', loadInstructors);
-
-async function api(path, opts = {}) {
+$('logout-btn').addEventListener('click', async () => {
+  $('logout-btn').disabled = true;
   try {
-    const data = await eduRequestJson(path, {
-      ...opts,
-      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken, ...(opts.headers || {}) }
-    }, 30000);
-    if (!data.ok) throw new Error(data.error || '요청을 처리하지 못했습니다.');
-    return data;
+    try { await api('/api/admin/logout', { method: 'POST' }); }
+    catch (error) { if (error.status !== 401) throw error; }
+    adminToken = '';
+    listVersion++;
+    updateAuth();
+    if (sb) {
+      const { error } = await authTimeout(sb.auth.signOut({ scope: 'local' }));
+      if (error) throw error;
+    }
+  } catch (error) { showLoginError(error.message); }
+  finally { $('logout-btn').disabled = false; await loadRooms(); }
+});
+
+async function api(path, options = {}) {
+  try {
+    const result = await eduRequestJson(path, { ...options,
+      headers: { 'Content-Type': 'application/json', ...(adminToken ? { 'X-Admin-Token': adminToken } : {}), ...options.headers }
+    }, 15000);
+    if (!result.ok) throw new Error(result.error || '요청을 처리하지 못했습니다.');
+    return result;
   } catch (error) {
-    // The short-lived admin token is independent of the instructor's login.
-    if (error.status === 401) {
+    if (error.status === 401 && adminToken) {
       adminToken = '';
       listVersion++;
-      $('screen-admin').classList.add('hidden');
-      $('screen-login').classList.remove('hidden');
-      showLoginState('form');
+      updateAuth();
       showLoginError('관리자 인증이 만료되었습니다. 다시 로그인하세요.');
     }
     throw error;
   }
 }
 
-async function loadInstructors() {
+async function loadRooms() {
   const version = ++listVersion;
+  loading = true;
   $('refresh-btn').disabled = true;
   try {
-    const data = await api('/api/admin/instructors');
-    if (version === listVersion) renderList(data.instructors || []);
+    const result = await api(adminToken ? '/api/admin/rooms' : '/api/rooms');
+    if (version !== listVersion) return;
+    lastList = result;
+    renderList(result);
+    $('list-status').textContent = '방금 갱신했어요 · 15초마다 자동 갱신';
   } catch (error) {
-    if (error.status !== 401 && version === listVersion) {
-      showToast('목록을 불러오지 못했습니다: ' + error.message, 5000);
-      if (!hasLoadedList) $('instructor-rows').innerHTML = `<tr><td colspan="5" class="text-sm text-gray" style="text-align:center;padding:32px">${esc(error.message)}<br>새로고침을 눌러 다시 시도하세요.</td></tr>`;
+    if (error.status === 401) { await loadRooms(); return; }
+    if (version !== listVersion) return;
+    $('list-status').textContent = '현황을 갱신하지 못했습니다. 새로고침으로 다시 시도하세요.';
+    showToast('목록을 불러오지 못했습니다: ' + error.message);
+    if (!lastList) $('room-rows').innerHTML = `<tr><td colspan="${adminToken ? 5 : 3}" class="room-empty">현황을 불러오지 못했습니다.</td></tr>`;
+  } finally {
+    if (version === listVersion) {
+      loading = false;
+      $('refresh-btn').disabled = false;
     }
+  }
+}
+
+function renderList(data) {
+  $('stat-rooms').textContent = data.roomCount;
+  $('stat-limit').textContent = data.roomLimit;
+  $('stat-participants').textContent = data.totalParticipants;
+  $('room-rows').innerHTML = data.rooms.length ? data.rooms.map(room => `<tr>
+    <td>${esc(room.lectureName)}</td><td>${esc(room.roomCode)}</td><td>${room.participantCount} / ${room.capacity}명</td>
+    ${adminToken ? `<td class="admin-date">${Number.isFinite(room.createdAt) ? esc(new Date(room.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })) + ' <span class="text-xs">KST</span>' : '—'}</td>
+      <td><button type="button" class="btn btn-sm btn-danger" data-code="${esc(room.roomCode)}" data-name="${esc(room.lectureName)}" ${deletingRooms.has(room.roomCode) ? 'disabled' : ''}>삭제</button></td>` : ''}
+    </tr>`).join('') : `<tr><td colspan="${adminToken ? 5 : 3}" class="room-empty">아직 열린 강의실이 없어요.<br>홈에서 첫 강의실을 만들어 보세요.</td></tr>`;
+}
+
+async function removeRoom(code, name) {
+  if (!adminToken || deletingRooms.has(code)) return;
+  if (!confirm(`“${name}” 강의실을 삭제할까요?\n참여 중인 모든 연결이 종료되며 대화와 자료 목록이 삭제됩니다.`)) return;
+  deletingRooms.add(code);
+  if (lastList) renderList(lastList);
+  try {
+    await api('/api/admin/rooms/' + encodeURIComponent(code), { method: 'DELETE' });
+    showToast('강의실을 삭제했습니다.');
+    await loadRooms();
+  } catch (error) {
+    if (error.status !== 401) showToast('삭제하지 못했습니다: ' + error.message);
+    if (error.status === 401 || error.status === 404) await loadRooms();
   } finally {
-    if (version === listVersion || !adminToken) $('refresh-btn').disabled = false;
+    deletingRooms.delete(code);
+    if (lastList) renderList(lastList);
   }
 }
 
-const STATUS_LABEL = { pending: '대기', approved: '승인됨', rejected: '거절됨' };
-
-function renderList(list) {
-  hasLoadedList = true;
-  // 대기 → 승인 → 거절 순, 같은 상태면 최신 등록 먼저
-  const order = { pending: 0, approved: 1, rejected: 2 };
-  const sorted = [...list].sort((a, b) =>
-    (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.createdAt - a.createdAt);
-
-  $('stat-pending').textContent = list.filter(a => a.status === 'pending').length;
-  $('stat-approved').textContent = list.filter(a => a.status === 'approved').length;
-  $('stat-rejected').textContent = list.filter(a => a.status === 'rejected').length;
-
-  const tbody = $('instructor-rows');
-  if (sorted.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="text-sm text-gray" style="text-align:center;padding:32px">등록된 강사가 없습니다</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = sorted.map(a => `
-    <tr>
-      <td class="fw-600">${esc(a.name)}</td>
-      <td>${esc(a.email)}</td>
-      <td><span class="status-chip chip-${esc(a.status)}">${STATUS_LABEL[a.status] || esc(a.status)}</span></td>
-      <td class="text-xs text-gray">${dateStr(a.createdAt)}</td>
-      <td>
-        <div class="admin-actions">
-          ${a.status !== 'approved' ? `<button class="btn btn-sm btn-primary" style="width:auto" data-action="approved" data-id="${esc(a.id)}">승인</button>` : ''}
-          ${a.status !== 'rejected' ? `<button class="btn btn-sm btn-danger" style="width:auto" data-action="rejected" data-id="${esc(a.id)}">거절</button>` : ''}
-          <button class="btn btn-sm btn-ghost" style="width:auto" data-action="delete" data-id="${esc(a.id)}" data-email="${esc(a.email)}">삭제</button>
-        </div>
-      </td>
-    </tr>
-  `).join('');
-  updateBusyAccounts();
-}
-
-function updateBusyAccounts() {
-  $('instructor-rows').querySelectorAll('button[data-id]').forEach(button => {
-    button.disabled = pendingAccounts.has(button.dataset.id);
-  });
-}
-
-$('instructor-rows').addEventListener('click', event => {
-  const button = event.target.closest('button[data-action]');
-  if (!button || button.disabled) return;
-  if (button.dataset.action === 'delete') window.removeAccount(button.dataset.id, button.dataset.email);
-  else window.setStatus(button.dataset.id, button.dataset.action);
+$('refresh-btn').addEventListener('click', loadRooms);
+$('room-rows').addEventListener('click', event => {
+  const button = event.target.closest('button[data-code]');
+  if (button && !button.disabled) removeRoom(button.dataset.code, button.dataset.name);
 });
-
-window.setStatus = async function (id, status) {
-  if (pendingAccounts.has(id)) return;
-  pendingAccounts.add(id);
-  listVersion++;
-  updateBusyAccounts();
-  try {
-    await api(`/api/admin/instructors/${encodeURIComponent(id)}/status`, {
-      method: 'POST',
-      body: JSON.stringify({ status })
-    });
-    showToast(status === 'approved' ? '승인했습니다' : '거절했습니다');
-    await loadInstructors();
-  } catch (error) {
-    if (error.status !== 401) showToast('변경하지 못했습니다: ' + error.message, 5000);
-  } finally {
-    pendingAccounts.delete(id);
-    updateBusyAccounts();
-    $('refresh-btn').disabled = false;
-  }
-};
-
-window.removeAccount = async function (id, email) {
-  if (pendingAccounts.has(id)) return;
-  if (!confirm(`${email} 계정을 삭제하시겠습니까?`)) return;
-  pendingAccounts.add(id);
-  listVersion++;
-  updateBusyAccounts();
-  try {
-    await api(`/api/admin/instructors/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    showToast('삭제했습니다');
-    await loadInstructors();
-  } catch (error) {
-    if (error.status !== 401) showToast('삭제하지 못했습니다: ' + error.message, 5000);
-  } finally {
-    pendingAccounts.delete(id);
-    updateBusyAccounts();
-    $('refresh-btn').disabled = false;
-  }
-};
+loadRooms();
+initAuth();
+setInterval(() => { if (!document.hidden && !loading) loadRooms(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !loading) loadRooms(); });

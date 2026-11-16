@@ -45,6 +45,13 @@
         this.setReady(false, '다른 창에서 접속됨');
         options.onError({ message: message || '다른 창에서 입장했습니다. 이 창에서 다시 입장하려면 새로고침하세요.', code: 'REPLACED' });
       });
+      socket.on('room:closed', ({ message } = {}) => {
+        this.stop();
+        this.hadJoined = false;
+        this.recoveryDeadline = 0;
+        this.setReady(false, '강의실 종료');
+        options.onError({ code: 'ROOM_CLOSED', message: message || '관리자가 강의실을 삭제했습니다.' });
+      });
       // Backgrounded mobile tabs can miss the automatic reconnect window.
       const reconnect = () => {
         if (this.desired && !socket.connected) socket.connect();

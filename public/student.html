@@ -2,10 +2,12 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0d766e">
-  <title>EduTalk - 학생</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#2466b2">
+  <title>EduTalk - 참여하기</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/emoji-picker.css">
+  <link rel="stylesheet" href="/css/room-invite.css">
 </head>
 <body>
 
@@ -14,9 +16,9 @@
   <div class="auth-card">
     <a href="/" class="auth-brand" aria-label="EduTalk 홈"><span class="brand-mark" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h6A2 2 0 0 1 12 8v12a4 4 0 0 0-4-2H4z"/><path d="M12 8a2 2 0 0 1 2-2.5h6V18h-4a4 4 0 0 0-4 2"/></svg></span><span>EduTalk</span></a>
     <div class="logo">
-      <p class="eyebrow">STUDENT SPACE</p>
-      <h1>함께 배울 준비 되셨나요?</h1>
-      <p>나를 표현할 아바타를 고르고,<br>강사님이 공유한 방 코드로 참여하세요.</p>
+      <p class="eyebrow">JOIN THE CLASSROOM</p>
+      <h1>참여하기</h1>
+      <p>누구나 닉네임만으로 참여할 수 있어요.<br>방장이 공유한 6자리 코드 또는 QR 코드를 이용하세요.</p>
     </div>
 
     <div class="form-group">
@@ -32,12 +34,13 @@
     <div class="form-group">
       <label for="join-room-code">방 코드</label>
       <input type="text" inputmode="numeric" autocomplete="off" id="join-room-code" placeholder="6자리 방 코드" maxlength="6" pattern="[0-9]{6}">
-      <div id="join-room-info" class="text-xs" style="margin-top:6px;display:none;"></div>
+      <div id="join-link-info" class="text-xs text-gray hidden" style="margin-top:6px" role="status">QR 코드·초대 링크의 방 코드가 입력되었어요. 닉네임을 입력해 참여하세요.</div>
+      <div id="join-room-info" class="text-xs" style="margin-top:6px;display:none;" role="status"></div>
     </div>
 
     <div id="join-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
 
-    <button class="btn btn-primary" id="join-btn">입장하기</button>
+    <button class="btn btn-primary" id="join-btn">참여하기</button>
     <div class="mt-12 text-sm text-gray" style="text-align:center">
       <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
     </div>
@@ -49,7 +52,7 @@
 
   <!-- Mobile header -->
   <div class="mobile-header">
-    <button class="menu-btn" id="mobile-menu-btn" aria-label="강의실 메뉴 열기"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <button class="menu-btn" id="mobile-menu-btn" aria-label="강의실 메뉴 열기" aria-controls="sidebar" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <span class="mobile-title">EduTalk</span>
     <span class="mobile-connection-status" id="mobile-connection-status" role="status" aria-live="polite">연결 확인 중</span>
   </div>
@@ -86,7 +89,7 @@
 
       <div id="staff-section" style="display:none">
         <div class="sidebar-section-title">
-          강사 · 조교 <span class="student-count" id="staff-count">0</span>
+          방장 · 조교 <span class="student-count" id="staff-count">0</span>
         </div>
         <div class="student-list" id="staff-list"></div>
       </div>
@@ -106,16 +109,23 @@
 
   <!-- Main -->
   <div class="main-content">
-    <header class="workspace-header">
-      <div><p class="eyebrow">OUR LEARNING SPACE</p><h1>함께 나누는 배움</h1></div>
-      <span class="workspace-pill"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h6A2 2 0 0 1 12 8v12a4 4 0 0 0-4-2H4z"/><path d="M12 8a2 2 0 0 1 2-2.5h6V18h-4a4 4 0 0 0-4 2"/></svg>학생 공간</span>
+    <header class="workspace-header room-invite-header">
+      <div class="room-invite-copy">
+        <p class="eyebrow">함께 참여해요 · 참여 공간</p>
+        <h1 class="room-invite-title"><span class="room-invite-label">방 번호</span> <span class="room-invite-number" id="persistent-room-code">——</span></h1>
+        <p class="room-invite-help">6자리 숫자 또는 QR 코드로 참여하세요</p>
+      </div>
+      <div class="room-invite-qr-frame">
+        <img class="room-invite-qr" id="persistent-room-qr" width="108" height="108" alt="강의실 참여 QR 코드">
+        <span class="room-invite-qr-error" id="persistent-qr-error" role="status" hidden>QR 로딩 실패<br>방 번호로 참여해 주세요</span>
+        <span class="room-invite-qr-caption">QR로 참여</span>
+      </div>
     </header>
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="chat"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/><path d="M7 9h8M7 13h5"/></svg>채팅</button>
       <button class="tab-btn" data-tab="whiteboard"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M12 17v4M8 21h8m-8-9 2.5-4 3 5 2.5-3"/></svg>화이트보드</button>
       <button class="tab-btn" data-tab="survey"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg>설문</button>
       <button class="tab-btn" data-tab="resources"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>교육자료</button>
-      <button class="tab-btn" data-tab="ai"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></svg>AI</button>
     </div>
 
     <div class="tab-content">
@@ -168,29 +178,11 @@
         <div class="student-resources-pane" id="student-resources-pane">
           <div class="empty-state" id="resources-empty">
             <div class="empty-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div>
-            <p>공유된 교육자료가 없습니다<br>강사가 자료를 공유하면 여기에 표시됩니다</p>
+            <p>공유된 교육자료가 없습니다<br>방장이 자료를 공유하면 여기에 표시됩니다</p>
           </div>
         </div>
       </div>
 
-      <!-- AI -->
-      <div class="tab-pane" data-pane="ai">
-        <div class="ai-pane">
-          <div class="ai-settings">
-            <input type="password" class="ai-key-input" aria-label="BizRouter API 키" id="ai-api-key" placeholder="BizRouter API 키 입력">
-            <select class="ai-model-select" aria-label="AI 모델" id="ai-model">
-              <option value="qwen/qwen3-coder">Qwen3 Coder</option>
-              <option value="qwen/qwen3.5-397b-a17b">Qwen3.5 397B</option>
-              <option value="minimax/minimax-m3">MiniMax M3</option>
-            </select>
-          </div>
-          <div class="ai-feed" id="ai-feed"></div>
-          <div class="ai-input-area">
-            <textarea class="ai-input" aria-label="AI에게 질문" id="ai-input" placeholder="AI에게 질문하세요..." rows="1"></textarea>
-            <button class="chat-send-btn" id="ai-send-btn" title="전송" aria-label="메시지 전송"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 11 16-7-7 16-2-7-7-2Z"/><path d="m11 13 9-9"/></svg></button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -210,7 +202,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/connection.js"></script>
 <script src="/js/whiteboard.js"></script>
-<script src="/js/markdown.js"></script>
+<script src="/js/emoji-picker.js"></script>
 <script src="/js/student.js"></script>
 </body>
 </html>

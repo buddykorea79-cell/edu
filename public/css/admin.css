@@ -1,0 +1,49 @@
+.admin-card { max-width: 1040px; width: 100%; padding: clamp(22px, 4vw, 48px); border-color: #e2ebf5; background: #fff; box-shadow: 0 18px 70px rgba(42, 92, 150, .07); }
+.admin-header { align-items: flex-start; gap: 16px; }
+.admin-header h1 { margin: 6px 0 10px; font-size: clamp(26px, 4vw, 34px); letter-spacing: -.04em; }
+.admin-brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 32px; color: #214e7c; font-weight: 800; text-decoration: none; font-size: 20px; }
+.admin-brand span { font-size: 9px; letter-spacing: .16em; color: #6784a3; }
+.admin-header-actions { flex-shrink: 0; align-items: center; }
+.admin-icon-button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #dbe8f7; background: #f5faff; border-radius: 50%; color: #527da8; cursor: pointer; }
+.admin-icon-button:hover { background: #eaf3ff; color: #2563b8; }
+.admin-icon-button:focus-visible { outline: 3px solid #8bbef5; outline-offset: 3px; }
+.admin-auth-status { min-height: 24px; margin: 10px 0 24px; }
+#admin-badge { display: inline-block; border-radius: 6px; padding: 7px 10px; font-size: 12px; background: #eaf3ff; color: #285fa2; }
+.admin-error { color: #b63847; font-size: 13px; padding: 10px 0 0; }
+.room-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 24px 0 34px; }
+.room-stat { background: linear-gradient(120deg, #f3f8ff, #fbfdff); border: 1px solid #e0eaf7; border-radius: 18px; padding: 22px 24px; }
+.room-stat > span:first-child { font-size: 13px; font-weight: 600; color: #395d82; }
+.room-stat p { margin: 8px 0; color: #235ca2; }
+.room-stat b { font-size: 38px; letter-spacing: -.04em; font-weight: 650; }
+.room-stat small { font-size: 16px; color: #667f99; margin-left: 3px; }
+.room-stat > span:last-child { font-size: 12px; color: #657e97; }
+.room-list-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+.room-list-heading h2 { font-size: 18px; letter-spacing: -.03em; }
+.room-list-heading .btn { width: auto; min-height: 40px; }
+#list-status { min-height: 18px; margin-bottom: 12px; }
+.admin-table th { background: #f7faff; color: #56718b; white-space: nowrap; }
+.admin-table td { padding-top: 19px; padding-bottom: 19px; }
+.admin-table td:first-child { max-width: 250px; overflow-wrap: anywhere; font-weight: 600; }
+.admin-table td:nth-child(2) { font-variant-numeric: tabular-nums; letter-spacing: .08em; color: #426c98; }
+.room-empty { text-align: center; padding: 38px 16px !important; color: #69819a; font-weight: 400 !important; }
+.admin-footnote { color: #6a8096; font-size: 12px; line-height: 1.8; margin: 20px 0 0; }
+.admin-table .btn { width: auto; white-space: nowrap; }
+@media (max-width: 640px) {
+  #screen-admin { padding: 14px; align-items: flex-start; }
+  .admin-card { padding: 22px 16px; border-radius: 20px; }
+  .admin-header { position: relative; display: block; padding-top: 4px; }
+  .admin-header-actions { position: absolute; right: 0; top: 0; gap: 5px; }
+  .admin-header-actions .btn { padding: 8px; min-height: 42px; }
+  .admin-brand span { display: none; }
+  .admin-brand { margin-bottom: 30px; }
+  .room-summary { gap: 10px; margin: 20px 0 26px; }
+  .room-stat { padding: 16px 12px; border-radius: 14px; }
+  .room-stat b { font-size: 32px; }
+  .room-stat > span:last-child { display: block; font-size: 11px; line-height: 1.6; }
+  .admin-table { min-width: 0; width: 100%; }
+  .admin-table th, .admin-table td { padding: 12px 8px; font-size: 12px; }
+  .admin-table td:first-child { min-width: 80px; }
+  .admin-table td:nth-child(3) { white-space: nowrap; }
+  .admin-table-wrap { overflow-x: auto; }
+  .admin-table .admin-date { min-width: 105px; font-size: 11px; }
+}

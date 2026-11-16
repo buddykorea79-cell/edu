@@ -1,0 +1,46 @@
+.chat-emoji-toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 23px;
+  cursor: pointer;
+}
+.chat-emoji-toggle:hover, .chat-emoji-toggle[aria-expanded="true"] { background: var(--color-primary-50); }
+.chat-emoji-picker {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  width: 340px;
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--color-border-default);
+  border-radius: 16px;
+  background: white;
+  color: var(--color-text-primary);
+  box-shadow: 0 12px 40px rgba(36, 70, 113, .15);
+}
+.chat-emoji-picker[hidden] { display: none; }
+.chat-emoji-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+.chat-emoji-close { width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-secondary); font-size: 24px; cursor: pointer; }
+.chat-emoji-categories { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-bottom: 10px; }
+.chat-emoji-categories button { min-height: 40px; padding: 5px 2px; border: 1px solid transparent; border-radius: 8px; background: var(--color-bg-elevated); color: var(--color-text-secondary); font-size: 12px; white-space: nowrap; cursor: pointer; }
+.chat-emoji-categories button[aria-pressed="true"] { border-color: var(--color-primary-300); background: var(--color-primary-100); color: var(--color-primary-800); font-weight: 700; }
+.chat-emoji-options { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.chat-emoji-choice { min-width: 0; min-height: 44px; padding: 4px 0; border: 0; border-radius: 9px; background: transparent; font-size: 26px; line-height: 1.2; cursor: pointer; }
+.chat-emoji-choice:hover, .chat-emoji-close:hover { background: var(--color-primary-50); }
+.chat-emoji-toggle:focus-visible, .chat-emoji-picker button:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.chat-emoji-status { margin-top: 10px; min-height: 18px; color: var(--color-text-tertiary); font-size: 11px; line-height: 1.5; }
+@media (max-width: 768px) {
+  .chat-emoji-toggle { width: 44px; height: 44px; }
+}
+@media (max-width: 380px) {
+  .chat-emoji-options { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .chat-input-area { gap: 3px; }
+}

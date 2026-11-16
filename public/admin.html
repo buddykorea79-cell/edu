@@ -3,75 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0d766e">
-  <title>EduTalk - 관리자</title>
+  <meta name="theme-color" content="#f4f9ff">
+  <title>EduTalk - 강의실 현황</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/admin.css">
 </head>
 <body>
-
-<!-- ── Screen: Admin Login (Google) ──────────────────────────────────────── -->
-<div id="screen-login" class="screen-wrap">
-  <div class="auth-card">
-    <a href="/" class="auth-brand" aria-label="EduTalk 홈"><span class="brand-mark" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h6A2 2 0 0 1 12 8v12a4 4 0 0 0-4-2H4z"/><path d="M12 8a2 2 0 0 1 2-2.5h6V18h-4a4 4 0 0 0-4 2"/></svg></span><span>EduTalk</span></a>
-    <div class="logo">
-      <p class="eyebrow">ADMIN SPACE</p>
-      <h1>운영을 위한 공간</h1>
-      <p>관리자 계정으로 로그인하여<br>강사 등록과 이용 권한을 관리하세요.</p>
-    </div>
-    <div id="login-loading" class="text-sm text-gray" style="text-align:center;padding:24px 0">
-      로그인 상태 확인 중...
-    </div>
-    <div id="login-form" class="hidden">
-      <div id="login-error" class="text-sm" style="color:var(--color-error);margin-bottom:12px;display:none;"></div>
-      <button class="btn btn-primary" id="google-login-btn">Google 계정으로 로그인</button>
-      <p class="text-sm text-gray mt-12" style="text-align:center">관리자 Google 계정으로만 접근할 수 있습니다.</p>
-    </div>
-    <div class="mt-12 text-sm text-gray" style="text-align:center">
-      <a href="/" style="color:var(--color-text-tertiary)">← 홈으로</a>
-    </div>
-  </div>
-</div>
-
-<!-- ── Screen: Admin Dashboard ───────────────────────────────────────────── -->
-<div id="screen-admin" class="screen-wrap hidden">
+<main id="screen-admin" class="screen-wrap">
   <div class="admin-card">
     <div class="admin-header">
       <div>
-        <p class="eyebrow">ADMINISTRATION</p>
-        <h2>강사 관리</h2>
-        <p class="text-sm text-gray" style="margin:4px 0 0">강사 등록 신청을 승인·거절하고 계정을 관리합니다</p>
+        <a href="/" class="admin-brand">EduTalk <span>CLASSROOMS</span></a>
+        <p class="eyebrow">함께 배우는 공간</p>
+        <h1>강의실 현황</h1>
+        <p class="text-sm text-gray">누구나 열린 강의실과 참여 인원을 확인할 수 있어요.</p>
       </div>
       <div class="admin-header-actions">
-        <button class="btn btn-secondary btn-sm" id="refresh-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5 7a8 8 0 0 1 13-2l2 3M4 16l2 3a8 8 0 0 0 13-2"/></svg>새로고침</button>
         <a href="/" class="btn btn-ghost btn-sm">홈으로</a>
+        <button type="button" class="admin-icon-button" id="google-login-btn" title="관리자 Google 로그인" aria-label="관리자 Google 로그인">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></svg>
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm hidden" id="logout-btn">로그아웃</button>
       </div>
     </div>
-
-    <div class="admin-stats" id="admin-stats">
-      <span class="admin-stat stat-pending">대기 <b id="stat-pending">0</b></span>
-      <span class="admin-stat stat-approved">승인 <b id="stat-approved">0</b></span>
-      <span class="admin-stat stat-rejected">거절 <b id="stat-rejected">0</b></span>
+    <div class="admin-auth-status">
+      <span id="login-loading" class="text-xs text-gray">관리자 로그인 확인 중…</span>
+      <span id="login-form" class="text-xs text-gray hidden">오른쪽 위 아이콘에서 관리자 로그인</span>
+      <span id="admin-badge" class="hidden">관리자 · 생성 시간 확인 및 삭제 가능</span>
+      <p id="login-error" class="admin-error" role="alert" hidden></p>
     </div>
-
+    <div class="room-summary" aria-live="polite">
+      <div class="room-stat"><span>열린 강의실</span><p><b id="stat-rooms">—</b><small> / <span id="stat-limit">5</span>개</small></p><span>최대 5개까지 함께 운영해요</span></div>
+      <div class="room-stat"><span>지금 참여 중</span><p><b id="stat-participants">—</b><small>명</small></p><span>방장을 제외한 현재 접속 인원</span></div>
+    </div>
+    <div class="room-list-heading">
+      <h2>열린 강의실</h2>
+      <button type="button" class="btn btn-secondary btn-sm" id="refresh-btn">새로고침</button>
+    </div>
+    <p id="list-status" class="text-xs text-gray" role="status">현황을 불러오는 중…</p>
     <div class="admin-table-wrap">
       <table class="admin-table">
-        <thead>
-          <tr>
-            <th>이름</th>
-            <th>이메일</th>
-            <th>상태</th>
-            <th>등록일</th>
-            <th>작업</th>
-          </tr>
-        </thead>
-        <tbody id="instructor-rows">
-          <tr><td colspan="5" class="text-sm text-gray" style="text-align:center;padding:32px">불러오는 중...</td></tr>
-        </tbody>
+        <caption class="sr-only">강의실별 참여 인원. 생성 시간과 삭제는 관리자에게 표시됩니다.</caption>
+        <thead><tr><th scope="col">강의실</th><th scope="col">방 코드</th><th scope="col">참여 인원</th><th scope="col" id="created-heading" class="hidden">생성 시간</th><th scope="col" id="actions-heading" class="hidden">관리</th></tr></thead>
+        <tbody id="room-rows"><tr><td colspan="3" class="room-empty">불러오는 중…</td></tr></tbody>
       </table>
     </div>
+    <p class="admin-footnote">현황은 15초마다 갱신됩니다. 한 PC의 같은 브라우저에서는 강의실 하나를 개설할 수 있어요.</p>
   </div>
-</div>
-
+</main>
 <script src="/vendor/supabase.js"></script>
 <script src="/js/connection.js"></script>
 <script src="/js/admin.js"></script>

@@ -1,0 +1,26 @@
+.landing-nav-actions { display: flex; align-items: center; gap: 16px; }
+.admin-icon-link { display: inline-flex; width: 38px; height: 38px; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--color-border-subtle); border-radius: 50%; background: white; color: var(--color-text-tertiary); }
+.admin-icon-link:hover { background: var(--color-bg-hover); color: var(--color-primary-700); }
+.admin-icon-link:focus-visible { outline: 3px solid var(--color-primary-400); outline-offset: 3px; }
+.admin-icon-fixed { position: fixed; top: 18px; right: 18px; z-index: 35; }
+.host-setup-error { color: var(--color-error); margin-bottom: 12px; }
+.host-setup-note { margin: 16px 0 0; text-align: center; line-height: 1.9; }
+.host-setup-links { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.host-owned-room { padding: 16px; margin-bottom: 20px; border: 1px solid var(--color-primary-300); border-radius: 12px; background: var(--color-primary-100); color: var(--color-primary-900); overflow-wrap: anywhere; }
+.room-share-dialog { padding: 28px; width: min(430px, calc(100% - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; border: 1px solid var(--color-border-subtle); border-radius: 20px; color: var(--color-text-primary); text-align: center; box-shadow: var(--shadow-lg); }
+.room-share-dialog::backdrop { background: var(--color-overlay); }
+.room-share-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.room-share-heading h2 { font-size: 21px; }
+.room-share-heading .copy-btn { width: 36px; height: 36px; flex-shrink: 0; }
+.room-qr-image { display: block; width: 256px; max-width: 100%; height: auto; margin: 16px auto 0; background: white; }
+.room-share-code { margin: 0; font: 650 34px/1.5 var(--font-mono); letter-spacing: .16em; color: var(--color-primary-900); }
+.room-share-dialog label { display: block; text-align: left; margin-top: 16px; }
+.room-share-dialog input { margin-top: 6px; font-size: 12px; }
+body:has(#screen-room:not(.hidden)) .admin-icon-fixed { top: 25px; right: 24px; }
+body:has(#screen-room:not(.hidden)) .workspace-header { padding-right: 80px; }
+@media (max-width: 768px) {
+  .admin-icon-fixed { top: 12px; right: 12px; }
+  body:has(#screen-room:not(.hidden)) .admin-icon-fixed { top: 10px; right: 12px; width: 34px; height: 34px; }
+  body:has(#screen-room:not(.hidden)) .mobile-header { padding-right: 58px; }
+  .room-share-dialog { padding: 22px; }
+}
