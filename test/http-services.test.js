@@ -91,6 +91,41 @@ test('single-file multipart upload succeeds and uses a generated safe filename',
   assert.equal(await fs.readFile(path.join(s.uploadsDir, files[0]), 'utf8'), 'class file');
 });
 
+test('browser multipart uploads preserve Korean and mixed Unicode display filenames', async t => {
+  const s = await setup(t);
+  for (const filename of ['당첨자_20261116_0955.csv', '출석부_20261115_0021.csv', '수업 자료 résumé 日本語 😀.PDF', 'lesson_20261116.TXT']) {
+    await t.test(filename, async () => {
+      const response = await fetch(`${s.url}/api/upload`, { method: 'POST', headers: auth(), body: multipart(filename) });
+      const body = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(body));
+      assert.equal(body.filename, filename);
+      assert.match(body.url, /^\/uploads\/[a-f0-9-]+\.(csv|pdf|txt)$/);
+      assert.equal(await fs.readFile(path.join(s.uploadsDir, path.basename(body.url)), 'utf8'), 'class file');
+    });
+  }
+});
+
+test('explicit multipart filename charsets are respected without double decoding', async t => {
+  const s = await setup(t);
+  for (const [parameter, filename] of [
+    [`UTF-8''${encodeURIComponent('한글_자료 😀.csv')}`, '한글_자료 😀.csv'],
+    [`UTF-8''${encodeURIComponent('café_École.csv')}`, 'café_École.csv'],
+    ["ISO-8859-1''caf%E9.csv", 'café.csv'],
+  ]) {
+    await t.test(parameter, async () => {
+      const boundary = 'filename-charset-boundary';
+      const body = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="fallback.csv"; filename*=${parameter}\r\nContent-Type: text/csv\r\n\r\nclass file\r\n--${boundary}--\r\n`;
+      const response = await fetch(`${s.url}/api/upload`, {
+        method: 'POST', headers: { ...auth(), 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body,
+      });
+      const result = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(result));
+      assert.equal(result.filename, filename);
+      assert.match(result.url, /^\/uploads\/[a-f0-9-]+\.csv$/);
+    });
+  }
+});
+
 test('multipart rejects missing files, fields, extra files and oversized files without leftovers', async t => {
   const s = await setup(t);
   const fields = multipart(); fields.append('extra', 'value');
