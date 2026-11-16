@@ -58,6 +58,8 @@ const connection = new EduTalkConnection(socket, {
     if (['NOT_FOUND', 'ROOM_NOT_FOUND', 'ROOM_CLOSED', 'FULL', 'REPLACED'].includes(error.code)) {
       showScreen('screen-join');
       $('results-modal').style.display = 'none';
+      if ($('room-share-dialog').open) $('room-share-dialog').close();
+      window.EduTalkClassroomLayout?.closeParticipants();
       $('sidebar').classList.remove('open');
       sidebarOverlay.classList.remove('visible');
       $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
@@ -172,13 +174,47 @@ $('persistent-room-qr').addEventListener('error', () => {
   $('persistent-qr-error').hidden = false;
 });
 
+// ── Enlarge the left-hand room invitation ─────────────────────────────────
+function showShareDialog() {
+  if (!roomCode) return;
+  $('room-share-code').textContent = roomCode;
+  $('room-share-name').textContent = $('room-lecture-name').textContent;
+  $('room-share-link').value = `${window.location.origin}/student.html?code=${roomCode}`;
+  $('qr-error').classList.add('hidden');
+  $('room-qr-image').classList.remove('hidden');
+  $('room-qr-image').src = `/api/room/${roomCode}/qr.svg`;
+  if (!$('room-share-dialog').open) $('room-share-dialog').showModal();
+}
+$('persistent-qr-button').addEventListener('click', showShareDialog);
+$('close-qr-btn').addEventListener('click', () => $('room-share-dialog').close());
+$('copy-share-link-btn').addEventListener('click', async () => {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+    await navigator.clipboard.writeText($('room-share-link').value);
+    showToast('참여 링크가 복사되었습니다!');
+  } catch (_) {
+    $('room-share-link').focus();
+    $('room-share-link').select();
+    showToast('참여 링크를 길게 누르거나 Ctrl+C로 복사하세요.', 5000);
+  }
+});
+$('room-qr-image').addEventListener('error', () => {
+  $('room-qr-image').classList.add('hidden');
+  $('qr-error').classList.remove('hidden');
+});
+$('room-share-dialog').addEventListener('click', event => {
+  if (event.target !== $('room-share-dialog')) return;
+  const bounds = event.target.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.target.close();
+});
+
 // ── Socket: student joined ─────────────────────────────────────────────────
 socket.on('student:joined', data => {
   connection.acceptSnapshot(data);
   roomCode = data.roomCode;
-  $('sb-room-code').textContent = roomCode;
   updateRoomInvite(roomCode);
-  $('sb-lecture-name').textContent = data.lectureName;
+  $('room-lecture-name').textContent = data.lectureName;
+  $('room-lecture-name').title = data.lectureName;
   $('sb-my-emoji').textContent = myEmoji;
   $('sb-my-name').textContent = myName;
 
@@ -197,6 +233,7 @@ socket.on('student:joined', data => {
   renderStudentResources(false);
 
   renderStaffList(data.assistants || []);
+  renderStudentList(data.students || []);
 
   // 화이트보드 초기화 + 누적 내용 재생 (학생도 협업 그리기 가능, 전체 지우기는 불가)
   if (!wbStarted) {
@@ -375,17 +412,19 @@ $('file-input').addEventListener('change', async function() {
 });
 
 // ── Student list ───────────────────────────────────────────────────────────
-socket.on('student:list', students => {
+socket.on('student:list', renderStudentList);
+function renderStudentList(students) {
   const list = $('student-list');
   const count = $('student-count');
   count.textContent = students.length;
+  $('chat-participant-count').textContent = students.length;
   list.innerHTML = students.map(s => `
     <div class="student-item">
       <span class="student-emoji">${esc(s.emoji)}</span>
       <span class="student-name">${esc(s.name)}</span>
     </div>
   `).join('');
-});
+}
 
 // ── Survey events ──────────────────────────────────────────────────────────
 socket.on('survey:started', survey => {
@@ -467,6 +506,9 @@ window.respondSurvey = function(optionIndex) {
 
 // ── Survey results modal ───────────────────────────────────────────────────
 function showResultsModal(data) {
+  window.EduTalkClassroomLayout?.closeParticipants();
+  window.EduTalkEmojiPicker?.close();
+  if ($('room-share-dialog').open) $('room-share-dialog').close();
   $('results-question').textContent = data.question;
   const barsEl = $('results-bars');
   const total = data.total || 0;
@@ -482,6 +524,7 @@ function showResultsModal(data) {
     </div>`;
   }).join('');
   $('results-modal').style.display = 'flex';
+  $('results-close-btn').focus();
 }
 
 $('results-close-btn').addEventListener('click', () => {

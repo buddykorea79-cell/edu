@@ -34,7 +34,7 @@ function pageFixture(role) {
       click() { return listeners.get('click')?.({ target: this }); },
       appendChild(child) { this.children.push(child); return child; },
       querySelectorAll() { return []; },
-      focus() {}, remove() {}, close() { this.open = false; },
+      focus() { this.focused = true; }, remove() {}, close() { this.open = false; },
       listeners,
     };
   }
@@ -48,6 +48,7 @@ function pageFixture(role) {
   const socketHandlers = new Map();
   let options;
   let emojiCloses = 0;
+  let participantCloses = 0;
   const context = {
     document: {
       body, getElementById: id => ids.get(id) || null,
@@ -58,6 +59,7 @@ function pageFixture(role) {
       constructor(socket, config) { options = config; }
     },
     EduTalkEmojiPicker: { close: () => emojiCloses++ },
+    EduTalkClassroomLayout: { closeParticipants: () => participantCloses++ },
     location: { origin: 'https://class.example', search: '' },
     navigator: {}, URLSearchParams,
     eduRequestJson: async () => ({ ok: true, token: 'browser-secret', room: null }),
@@ -65,8 +67,23 @@ function pageFixture(role) {
   };
   context.window = context;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, `../public/js/${role}.js`), 'utf8'), context);
-  return { html, ids, body, options, socketHandlers, emojiCloses: () => emojiCloses };
+  return { html, ids, body, options, socketHandlers, emojiCloses: () => emojiCloses, participantCloses: () => participantCloses };
 }
+
+test('incoming student survey results dismiss competing overlays and focus the result controls', () => {
+  const page = pageFixture('student');
+  const invitation = page.ids.get('room-share-dialog');
+  invitation.open = true;
+  page.socketHandlers.get('survey:resultsShared')({
+    question: '오늘 수업은 어떠셨나요?', options: ['좋아요', '다시 설명해 주세요'], results: [2, 1], total: 3,
+  });
+  assert.equal(page.participantCloses(), 1);
+  assert.equal(page.emojiCloses(), 1);
+  assert.equal(invitation.open, false);
+  assert.equal(page.ids.get('results-modal').style.display, 'flex');
+  assert.equal(page.ids.get('results-question').textContent, '오늘 수업은 어떠셨나요?');
+  assert.equal(page.ids.get('results-close-btn').focused, true);
+});
 
 for (const role of ['instructor', 'student']) {
   test(`${role} page boots without removed AI elements and binds its remaining classroom controls`, async () => {

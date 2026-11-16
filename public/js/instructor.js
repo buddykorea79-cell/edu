@@ -44,6 +44,7 @@ const connection = new EduTalkConnection(socket, {
     closeSidebar();
     $('mobile-menu-btn').setAttribute('aria-expanded', 'false');
     window.EduTalkEmojiPicker?.close();
+    window.EduTalkClassroomLayout?.closeParticipants();
     clearInterval(expiryIntervalId);
     const message = error.message || error.error || '강의실에 연결하지 못했습니다.';
     showError('setup-error', message);
@@ -212,7 +213,6 @@ async function copyText(value, successMessage) {
 }
 
 $('copy-code-btn').addEventListener('click', () => copyText(roomCode, '방 코드가 복사되었습니다!'));
-$('sb-room-code').addEventListener('click', () => copyText(roomCode, '방 코드가 복사되었습니다!'));
 $('share-link-btn').addEventListener('click', () => copyText(participationLink(), '참여 링크가 복사되었습니다!'));
 $('copy-share-link-btn').addEventListener('click', () => copyText(participationLink(), '참여 링크가 복사되었습니다!'));
 
@@ -227,7 +227,6 @@ function showShareDialog() {
   if (!$('room-share-dialog').open) $('room-share-dialog').showModal();
 }
 
-$('show-qr-btn').addEventListener('click', showShareDialog);
 $('close-qr-btn').addEventListener('click', () => $('room-share-dialog').close());
 $('room-qr-image').addEventListener('error', () => {
   $('room-qr-image').classList.add('hidden');
@@ -373,9 +372,9 @@ socket.on('instructor:joined', data => {
   lectureName = data.lectureName || lectureName;
 
   showScreen('screen-room');
-  $('sb-room-code').textContent = roomCode;
   updateRoomInvite(roomCode);
-  $('sb-lecture-name').textContent = lectureName;
+  $('room-lecture-name').textContent = lectureName;
+  $('room-lecture-name').title = lectureName;
 
   // 정원 안내
   const capHint = $('capacity-hint');
@@ -441,6 +440,7 @@ function renderStudentList(students) {
   const list = $('student-list');
   const count = $('student-count');
   count.textContent = students.length;
+  $('chat-participant-count').textContent = students.length;
   if (students.length === 0) {
     list.innerHTML = '<div class="text-sm text-gray" style="padding:6px 20px">아직 학생이 없습니다</div>';
     return;
@@ -534,7 +534,7 @@ function renderSurveys() {
 function renderSurveysNow() {
   const feed = $('surveys-feed');
   if (surveys.length === 0) {
-    feed.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><p>설문이 없습니다<br>사이드바에서 설문을 시작하세요</p></div>`;
+    feed.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><p>아직 진행한 설문이 없습니다<br>위의 도구로 설문을 시작하세요</p></div>`;
     return;
   }
   feed.innerHTML = '';

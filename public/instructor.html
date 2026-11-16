@@ -54,31 +54,23 @@
         <span class="conn-dot" id="conn-dot"></span>
       </div>
       <div id="connection-status" class="connection-status" role="status" aria-live="polite">연결 중</div>
-      <div class="room-info-box">
-        <div class="room-code-row">
-          <span class="room-code-label">방 코드</span>
-          <span class="room-code-value" id="sb-room-code" title="클릭하여 복사">——</span>
-          <button class="copy-btn" id="copy-code-btn" title="복사" aria-label="방 코드 복사"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H4v13h4"/></svg></button>
-        </div>
-        <div class="lecture-name" id="sb-lecture-name">—</div>
-
-        <div class="room-expire-info" id="room-expire-info"></div>
-        <button class="share-link-btn" id="share-link-btn" title="참여 링크 복사"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 13 4-4M8 16l-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m4 0 2-2a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 0) scale(.9)"/></svg>입장 링크 복사</button>
-        <button class="share-link-btn" id="show-qr-btn" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM14 14h3v3h4v4h-6v-3h-3v-4Z"/></svg>QR 코드로 초대하기</button>
-      </div>
+      <div class="room-expire-info" id="room-expire-info"></div>
     </div>
 
     <div class="sidebar-body">
-      <!-- Students -->
-      <div>
-        <div class="sidebar-section-title">
-          참여 학생 <span class="student-count" id="student-count">0</span>
-          <span class="capacity-hint" id="capacity-hint">/ 50</span>
+      <section class="sidebar-invitation" aria-labelledby="invite-title">
+        <h2 id="invite-title">참여 코드</h2>
+        <div class="room-invite-code-row">
+          <span class="room-invite-number" id="persistent-room-code">——</span>
+          <button type="button" class="copy-btn" id="copy-code-btn" title="방 코드 복사" aria-label="방 코드 복사"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H4v13h4"/></svg></button>
         </div>
-        <div class="student-list" id="student-list">
-          <div class="text-sm text-gray" style="padding:6px 20px">아직 학생이 없습니다</div>
-        </div>
-      </div>
+        <button type="button" class="room-invite-link" id="share-link-btn" title="참여 링크 복사">참여 링크 복사</button>
+        <button type="button" class="room-invite-qr-frame" id="persistent-qr-button" aria-label="강의실 참여 QR 코드 크게 보기" aria-haspopup="dialog">
+          <img class="room-invite-qr" id="persistent-room-qr" width="192" height="192" alt="강의실 참여 QR 코드">
+          <span class="room-invite-qr-error" id="persistent-qr-error" role="status" hidden>QR 로딩 실패<br>방 번호로 참여해 주세요</span>
+          <span class="room-invite-qr-caption">QR 코드 확대</span>
+        </button>
+      </section>
 
       <!-- Staff (조교) -->
       <div id="staff-section" style="display:none">
@@ -88,18 +80,6 @@
         <div class="student-list" id="staff-list"></div>
       </div>
 
-      <!-- Survey tools -->
-      <div>
-        <div class="sidebar-section-title">설문 도구</div>
-        <div class="sidebar-tools">
-          <button class="tool-btn" id="understanding-btn">
-            <span class="tool-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span> 이해도 조사
-          </button>
-          <button class="tool-btn" id="custom-survey-btn">
-            <span class="tool-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg></span> 객관식 설문 만들기
-          </button>
-        </div>
-      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -112,62 +92,66 @@
     <header class="workspace-header room-invite-header">
       <div class="room-invite-copy">
         <p class="eyebrow">함께 참여해요 · 방장 공간</p>
-        <h1 class="room-invite-title"><span class="room-invite-label">방 번호</span> <span class="room-invite-number" id="persistent-room-code">——</span></h1>
-        <p class="room-invite-help">6자리 숫자 또는 QR 코드로 참여하세요</p>
+        <h1 class="room-lecture-name" id="room-lecture-name">강의실</h1>
       </div>
-      <button type="button" class="room-invite-qr-frame" id="persistent-qr-button" aria-label="강의실 참여 QR 코드 크게 보기" aria-haspopup="dialog">
-        <img class="room-invite-qr" id="persistent-room-qr" width="108" height="108" alt="강의실 참여 QR 코드">
-        <span class="room-invite-qr-error" id="persistent-qr-error" role="status" hidden>QR 로딩 실패<br>방 번호로 참여해 주세요</span>
-        <span class="room-invite-qr-caption">QR로 참여 · 확대</span>
-      </button>
     </header>
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="chat"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8Z"/><path d="M7 9h8M7 13h5"/></svg>채팅</button>
-      <button class="tab-btn" data-tab="whiteboard"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M12 17v4M8 21h8m-8-9 2.5-4 3 5 2.5-3"/></svg>화이트보드</button>
       <button class="tab-btn" data-tab="surveys"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg>설문</button>
       <button class="tab-btn" data-tab="resources"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>교육자료</button>
+      <button class="tab-btn" data-tab="whiteboard"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M12 17v4M8 21h8m-8-9 2.5-4 3 5 2.5-3"/></svg>화이트보드</button>
     </div>
 
     <div class="tab-content">
       <!-- Chat -->
       <div class="tab-pane active" data-pane="chat">
-        <div class="chat-feed" id="chat-feed"></div>
-        <div class="chat-input-area">
-          <input type="file" id="file-input" style="display:none" accept="*/*">
-          <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부" aria-label="파일 첨부"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 12 6-6a4 4 0 0 1 6 6l-8 8a6 6 0 0 1-8-8l8-8a2 2 0 0 1 3 3l-8 8a1 1 0 0 1-2-2l7-7"/></svg></button>
-          <input type="text" class="chat-input" aria-label="채팅 메시지" id="chat-input" maxlength="2000" placeholder="메시지 입력...">
-          <button class="chat-send-btn" id="chat-send-btn" title="전송" aria-label="메시지 전송"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 11 16-7-7 16-2-7-7-2Z"/><path d="m11 13 9-9"/></svg></button>
-        </div>
-        <p class="composer-hint">Enter 키로 메시지를 전송할 수 있어요</p>
-      </div>
-
-      <!-- Whiteboard -->
-      <div class="tab-pane" data-pane="whiteboard">
-        <div class="whiteboard-pane">
-          <div class="whiteboard-toolbar">
-            <div class="wb-colors" id="wb-colors"></div>
-            <label class="wb-size">
-              굵기
-              <input type="range" id="wb-size" min="1" max="24" value="3">
-            </label>
-            <button class="btn btn-sm btn-secondary" id="wb-eraser-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 14 10-10 8 8-9 9H9l-6-7Z"/><path d="m8 9 8 8M12 21h9"/></svg>지우개</button>
-            <input type="file" id="wb-image-input" accept="image/*" style="display:none">
-            <button class="btn btn-sm btn-secondary" id="wb-image-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>이미지</button>
-            <button class="btn btn-sm btn-secondary" id="wb-capture-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="4"/><path d="M8 5V3h8v2"/></svg>화면캡처</button>
-            <button class="btn btn-sm btn-danger" id="wb-clear-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>전체 지우기</button>
+        <div class="chat-workspace">
+          <div class="chat-main">
+            <div class="chat-toolbar">
+              <span>실시간 대화</span>
+              <button type="button" class="participants-toggle" id="participants-toggle" aria-controls="participants-panel" aria-expanded="false">학생 <span id="chat-participant-count">0</span></button>
+            </div>
+            <div class="chat-feed" id="chat-feed"></div>
+            <div class="chat-input-area">
+              <input type="file" id="file-input" style="display:none" accept="*/*">
+              <button class="file-upload-btn" id="file-upload-btn" title="파일 첨부" aria-label="파일 첨부"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 12 6-6a4 4 0 0 1 6 6l-8 8a6 6 0 0 1-8-8l8-8a2 2 0 0 1 3 3l-8 8a1 1 0 0 1-2-2l7-7"/></svg></button>
+              <input type="text" class="chat-input" aria-label="채팅 메시지" id="chat-input" maxlength="2000" placeholder="메시지 입력...">
+              <button class="chat-send-btn" id="chat-send-btn" title="전송" aria-label="메시지 전송"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 11 16-7-7 16-2-7-7-2Z"/><path d="m11 13 9-9"/></svg></button>
+            </div>
+            <p class="composer-hint">Enter 키로 메시지를 전송할 수 있어요</p>
           </div>
-          <div class="whiteboard-canvas-wrap" id="wb-wrap">
-            <canvas id="wb-canvas"></canvas>
-          </div>
+          <aside class="chat-participants" id="participants-panel" aria-labelledby="participants-title">
+            <div class="participants-header">
+              <h2 id="participants-title">참여 학생 <span class="student-count" id="student-count">0</span><span class="capacity-hint" id="capacity-hint"> / 50</span></h2>
+              <button type="button" class="participants-close" id="participants-close" aria-label="학생 목록 닫기">✕</button>
+            </div>
+            <div class="student-list" id="student-list">
+              <div class="text-sm text-gray" style="padding:6px 20px">아직 학생이 없습니다</div>
+            </div>
+          </aside>
         </div>
       </div>
 
       <!-- Surveys -->
       <div class="tab-pane" data-pane="surveys">
-        <div class="surveys-pane" id="surveys-feed">
-          <div class="empty-state">
-            <div class="empty-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg></div>
-            <p>설문이 없습니다<br>사이드바에서 설문을 시작하세요</p>
+        <div class="surveys-pane">
+          <section class="survey-tools-panel" aria-labelledby="survey-tools-title">
+            <h2 id="survey-tools-title">설문 도구</h2>
+            <p>수업 이해도를 확인하거나, 원하는 질문으로 의견을 모아 보세요.</p>
+            <div class="survey-tools-actions">
+              <button class="btn btn-secondary survey-create-btn" type="button" id="understanding-btn">
+                <span class="tool-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span> 이해도 조사
+              </button>
+              <button class="btn btn-secondary survey-create-btn" type="button" id="custom-survey-btn">
+                <span class="tool-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h5M8 16h3"/></svg></span> 객관식 설문 만들기
+              </button>
+            </div>
+          </section>
+          <div class="survey-results-list" id="surveys-feed">
+            <div class="empty-state">
+              <div class="empty-icon">📊</div>
+              <p>아직 진행한 설문이 없습니다<br>위의 도구로 설문을 시작하세요</p>
+            </div>
           </div>
         </div>
       </div>
@@ -191,6 +175,27 @@
           <div class="resource-list" id="resource-list-section" style="display:none">
             <div class="resource-list-title">공유된 자료</div>
             <div id="resource-items"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Whiteboard -->
+      <div class="tab-pane" data-pane="whiteboard">
+        <div class="whiteboard-pane">
+          <div class="whiteboard-toolbar">
+            <div class="wb-colors" id="wb-colors"></div>
+            <label class="wb-size">
+              굵기
+              <input type="range" id="wb-size" min="1" max="24" value="3">
+            </label>
+            <button class="btn btn-sm btn-secondary" id="wb-eraser-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 14 10-10 8 8-9 9H9l-6-7Z"/><path d="m8 9 8 8M12 21h9"/></svg>지우개</button>
+            <input type="file" id="wb-image-input" accept="image/*" style="display:none">
+            <button class="btn btn-sm btn-secondary" id="wb-image-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>이미지</button>
+            <button class="btn btn-sm btn-secondary" id="wb-capture-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="4"/><path d="M8 5V3h8v2"/></svg>화면캡처</button>
+            <button class="btn btn-sm btn-danger" id="wb-clear-btn" style="width:auto"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>전체 지우기</button>
+          </div>
+          <div class="whiteboard-canvas-wrap" id="wb-wrap">
+            <canvas id="wb-canvas"></canvas>
           </div>
         </div>
       </div>
@@ -245,6 +250,7 @@
 <script src="/js/connection.js"></script>
 <script src="/js/whiteboard.js"></script>
 <script src="/js/emoji-picker.js"></script>
+<script src="/js/classroom-layout.js"></script>
 <script src="/js/instructor.js"></script>
 </body>
 </html>
